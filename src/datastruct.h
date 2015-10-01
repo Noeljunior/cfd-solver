@@ -1,4 +1,4 @@
-#include<stdio.h>
+#include <stdio.h>
 
 /* Versions of input files */
 #define VERSION_G1 1
@@ -28,7 +28,7 @@ struct args {
 };
 
 /*
- * The input file content, aka the mesh
+ * The input file content
  */
 typedef struct mesh {
     int     dimension;          /* Dimension */
