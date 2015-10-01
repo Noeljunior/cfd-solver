@@ -7,6 +7,14 @@
 #include "main.h"
 
 
+/*  TODO LIST:
+    - add an option to select compatible mode or normal mode explicity
+        . try to read the file/stdin and understand as default
+    - add the ability to read configs as a file
+
+
+*/
+
 /* Print info related to this file */
 #define INFO(i) printf("INFO[MA]: %s\n", i)
 
