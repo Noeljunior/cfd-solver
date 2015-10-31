@@ -375,7 +375,7 @@ cfds_mesh * cfds_init(cfds_args ina, double ** vertices, int sizev, int ** edges
         inm->triangles[i].curved = NN;
     }
 
-    INFO("%d vertices, %d triangles and %d edges successfuly added.", sizev, sizet, sizee);
+    INFOMF("%d vertices, %d triangles and %d edges successfuly added.", sizev, sizet, sizee);
 
     /* compute the faces */
     compute_faces(inm, edges, sizee);
@@ -392,7 +392,7 @@ void cfds_solve(cfds_mesh * inm) {
 
     /* handle SINGINT so we can interrupt the solver; TODO maybe using a USERSIG is a better idea! */
     signal(SIGINT, sig_handler);
-    /*INFO("Couldn't handle SIGINT signal. Not sure why (are you handling it before?)");*/
+    /*INFOMF("Couldn't handle SIGINT signal. Not sure why (are you handling it before?)");*/
 
     /* Init time measurements */
 
@@ -406,7 +406,7 @@ void cfds_solve(cfds_mesh * inm) {
 
      */
 
-    INFO("will cook every single var out there");
+    INFOMF("will cook every single var out there");
 
     compute_radius(inm);
     time_tick("compute_radius()" + supress_compute);
@@ -438,7 +438,7 @@ void cfds_solve(cfds_mesh * inm) {
     compute_prelimiters(inm);
     time_tick("compute_prelimiters()" + supress_compute);
 
-    INFO("everything is cooked... will now eat the CFD problem (runge kutta: 5 stages)");
+    INFOMF("everything is cooked... will now eat the CFD problem (runge kutta: 5 stages)");
 
     compute_rungekutta5(inm);
     time_tick("compute_rungekutta5()" + supress_compute);
@@ -454,7 +454,7 @@ void cfds_free(cfds_mesh * inm) {
      */
     static char *FUN = "free()";
 
-    INFO("NOT IMPLEMENTED YET; should be freeing up now");
+    WARNMF("NOT IMPLEMENTED YET; should be freeing up now");
 }
 
 
@@ -675,7 +675,7 @@ void compute_faces(mesh * inm, int ** edges, int sizee) {
             inm->edgeface[i] = faces + tc[i - 1];
     }
 
-    INFO("proccessed %d faces (%d edges; %d different borders)", p, sizee, inm->noborders);
+    INFOMF("proccessed %d faces (%d edges; %d different borders)", p, sizee, inm->noborders);
 }
 
 void compute_radius(mesh * inm) {
@@ -723,7 +723,7 @@ void compute_radius(mesh * inm) {
         free(yy);
         free(curve_radius);
     }
-    INFO("%d splines computed as well as %d radii", inm->noborders, t);
+    INFOMF("%d splines computed as well as %d radii", inm->noborders, t);
 }
 
 void compute_midle_points(mesh * inm) {
@@ -1076,7 +1076,7 @@ void compute_stencil(mesh * inm) {
     const char *FUN = "compute_stencil()" + supress_compute;
     int i;
 
-    INFO("NOT FULLY IMPLEMENTED!");
+    WARNMF("NOT FULLY IMPLEMENTED!");
     /*#pragma message "compute_stencil(): NOT FULLY IMPLEMENTED!"*/
 
     /* allocate space for the stencils. TODO is that need so much mem? at least find an upper bound */
@@ -1308,7 +1308,7 @@ void compute_coefmat_pseudoinverse(mesh * inm) {
         }
     }
 
-    INFO("Yo dawg, loop the loop the loop the... Let's pseudoinverse this");
+    INFOMF("Yo dawg, loop the loop the loop the... Let's pseudoinverse this");
 
     double *m[inm->max_cvno + 1];
     forn (inm->novertices) {
@@ -1559,7 +1559,7 @@ void compute_rungekutta5(mesh * inm) {
             forj (NOU)
                 uconserv[i][j] = uconserv_0[i][j] - dt[i] * r[i][j];
 
-        INFO("Residue[%*d]: %.50e", maxs, iteration, residue);
+        INFOMF("Residue[%*d]: %.50e", maxs, iteration, residue);
 
         iteration++;
     }
@@ -1572,7 +1572,7 @@ void compute_rungekutta5(mesh * inm) {
     print3d(coef, inm->novertices, NOU, inm->notc, 0);*/
 
     printf("\n");
-    INFO("Final residue: %.50e", residue);
+    INFOMF("Final residue: %.50e", residue);
 }
 
 
@@ -1992,7 +1992,7 @@ static void compute_rk_residue(mesh * inm, double **u, double ***coef, double **
                 if (inm->faces[i].flow[j] == INFLOW) { //fprintf(f, "%d inflow\n", i+1);
                     if (inm->mach_inflow > 1.0) {
                         /* TODO NEVER THE CASE, by now */
-                        INFO("Dude, you'r trying to fly over 1 MACH! You sould buy a better aircraft or it will crash [inflow-vi]");
+                        INFOMF("Dude, you'r trying to fly over 1 MACH! You sould buy a better aircraft or it will crash [inflow-vi]");
                     } else {
                         press = compute_rk_polinomial_lim(inm, u, coef, phi_chapel, indexof(inm->vertices, vi), 3, xg, yg);
                         compute_rk_r_subinflow(inm, fluxoinv, press, nx, ny);
@@ -2003,7 +2003,7 @@ static void compute_rk_residue(mesh * inm, double **u, double ***coef, double **
                     Mach = l2dist(vp1[1], vp1[2]) / sqrt(inm->gamma * vp1[3] / vp1[0]);
                     if (Mach > 1.0) {
                         /* TODO NEVER THE CASE, by now */
-                        INFO("Dude, you'r trying to fly over 1 MACH! You sould buy a better aircraft or it will crash [outflow-vi]");
+                        INFOMF("Dude, you'r trying to fly over 1 MACH! You sould buy a better aircraft or it will crash [outflow-vi]");
                     } else {
                         compute_rk_r_suboutflow(inm, fluxoinv, vp1, nx, ny);
                     }
@@ -2045,7 +2045,7 @@ static void compute_rk_residue(mesh * inm, double **u, double ***coef, double **
                 if (inm->faces[i].flow[j] == INFLOW) {
                     if (inm->mach_inflow > 1.0) {
                         /* TODO NEVER THE CASE, by now */
-                        INFO("Dude, you'r trying to fly over 1 MACH! You sould buy a better aircraft or it will crash [inflow-vf]");
+                        INFOMF("Dude, you'r trying to fly over 1 MACH! You sould buy a better aircraft or it will crash [inflow-vf]");
                     } else {
                         press = compute_rk_polinomial_lim(inm, u, coef, phi_chapel,  indexof(inm->vertices, vf), 3, xg, yg);
                         compute_rk_r_subinflow(inm, fluxoinv, press, nx, ny);
@@ -2056,7 +2056,7 @@ static void compute_rk_residue(mesh * inm, double **u, double ***coef, double **
                     Mach = l2dist(vp1[1], vp1[2]) / sqrt(inm->gamma * vp1[3] / vp1[0]);
                     if (Mach > 1.0) {
                         /* TODO NEVER THE CASE, by now */
-                        INFO("Dude, you'r trying to fly over 1 MACH! You sould buy a better aircraft or it will crash [outflow-vf]");
+                        INFOMF("Dude, you'r trying to fly over 1 MACH! You sould buy a better aircraft or it will crash [outflow-vf]");
                     } else {
                         compute_rk_r_suboutflow(inm, fluxoinv, vp2, nx, ny);
                     }
@@ -2249,7 +2249,7 @@ void time_print() {
 
         sprintf(tmp, "Time in %s", twhere[i]);
         //printf("%-*s: %fs (user %fs + sys %fs)\n", maxmargin, tmp, elapsedu + elapseds, elapsedu, elapseds);
-        INFO("%-*s: %fs (user %fs + sys %fs)", maxmargin, tmp, elapsedu + elapseds, elapsedu, elapseds);
+        INFOMF("%-*s: %fs (user %fs + sys %fs)", maxmargin, tmp, elapsedu + elapseds, elapsedu, elapseds);
     }
 
     /* Total time */
@@ -2260,7 +2260,7 @@ void time_print() {
 
     sprintf(tmp, "Total time");
     //printf("%-*s: %fs (user %fs + sys %fs)\n", maxmargin, tmp, elapsedu + elapseds, elapsedu, elapseds);
-    INFO("%-*s: %fs (user %fs + sys %fs)", maxmargin, tmp, elapsedu + elapseds, elapsedu, elapseds);
+    INFOMF("%-*s: %fs (user %fs + sys %fs)", maxmargin, tmp, elapsedu + elapseds, elapsedu, elapseds);
 }
 
 
@@ -2278,12 +2278,12 @@ void sig_handler(int signo) {
     if (signo == SIGINT) {
         printf("\r");
         if (!running_solver) {
-            INFO("SIGINT received. Aborting!");
+            INFOMF("SIGINT received. Aborting!");
             exit(0);
         }
 
         interrupt_solver = 1;
-        INFO("SIGINT received. Interrupting the solver as soon as we can!");
+        INFOMF("SIGINT received. Interrupting the solver as soon as we can!");
     }
 }
 
