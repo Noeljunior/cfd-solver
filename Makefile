@@ -25,7 +25,7 @@ clean:
 	rm -f cfd
 	rm -fr ${OBJ}
 
-run: all
+run: $(OUT)
 	./$(OUT) mesh/naca0012_2261VERT.mesh -p1
 
 force: clean ${OUT}
