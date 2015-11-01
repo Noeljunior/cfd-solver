@@ -32,6 +32,11 @@ typedef struct cfds_args {
     double  cfl;                /* CFL Condiction */
     int     max_iterations;     /* Maximum iterations */
     double  nr_threashold;      /* residue norm threshold to stop */
+
+    char    verbose;            /* if to show something more */
+    char    quiet;              /* show nothing */
+    char    showinner;          /* if to show detailed results in each rungekutta iterations */
+    char    fclassify;          /* if quiet is set and this is set to, then it outputs only the classification */
 } cfds_args;
 
 

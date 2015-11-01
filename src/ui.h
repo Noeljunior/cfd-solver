@@ -31,8 +31,8 @@ typedef struct ui_args {
     /*char    *parameters_file;
     char    *log_file;*/
     char    verbose;            /* if to show something more */
-    char    showinner;          /* if to show detailed results in each rungekutta iterations */
     char    quiet;              /* show nothing */
+    char    showinner;          /* if to show detailed results in each rungekutta iterations */
     char    fclassify;          /* if quiet is set and this is set to, then it outputs only the classification */
     char    rstdin;             /* read from stdin and not from a file */
     char    mftype;             /* mesh-file type; 0: is auto; 1: force new; 2: force legacy */
@@ -48,7 +48,7 @@ typedef struct ui_args {
             f_residue;*/
     int     testp;              /* the number of pre-defined problem related settings */
 
-    int     mandatory;
+    int     mandatory;          /* inner var to control the mandatory arguments */
 
     
 } ui_args;

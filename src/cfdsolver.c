@@ -169,7 +169,7 @@ struct cfds_mesh {
     double          *gws[3];                /* Gauss weights */
 
                                 /* simulation */
-    double          **uconserv,             
+    double          **uconserv,             /*  */
                     **u,                    /*  */
                     ***coef,                /*  */
                     **phi_chapel,           /*  */
@@ -177,8 +177,10 @@ struct cfds_mesh {
 
 
                                 /* settings */
-    int             verbosity;              /* verbosity */
-    int             quiet;                  /* be quiet all the time */
+    char            verbosity;              /* verbosity; 0: norma; 1: more verbose */
+    char            quiet;                  /* be quiet all the time */
+    char            showinner;              /* if to show results each rungekutta iteration */
+    char            fclassify;              /* if quiet is set, show the classification */
 };
 
 
@@ -299,7 +301,7 @@ flow            compute_wall_condiction(border b, double inflow_angle, double xx
 times *         times_init(int maxmes);
 void            times_tick(times * t, char * desc);
 void            times_zero(times * t);
-void            times_print(times * t);
+void            times_print(times * t, int verbose);
 /* keep time-tracking */
 times *         timemes;
 int             supress_compute  = sizeof("compute");
@@ -366,6 +368,12 @@ cfds_mesh * cfds_init(cfds_args ina, double ** vertices, int sizev, int ** edges
     inm->M1                     = 0.8;
     inm->M2                     = 0.85;
 
+    /* copy settings */
+    inm->verbosity              = ina.verbose;
+    inm->quiet                  = ina.quiet;
+    inm->showinner              = ina.showinner;
+    inm->fclassify              = ina.fclassify;
+
     /* copy vertices, edges and triangles to the internal data struct */
     int i;
     timemes = times_init(16);
@@ -388,7 +396,7 @@ cfds_mesh * cfds_init(cfds_args ina, double ** vertices, int sizev, int ** edges
         inm->triangles[i].curved = NN;
     }
 
-    INFOMF("%d vertices, %d triangles and %d edges successfuly added.", sizev, sizet, sizee);
+    if (!inm->quiet) INFOMF("%d vertices, %d triangles and %d edges successfuly added.", sizev, sizet, sizee);
     times_tick(timemes, "cfds_init()");
 
     /* compute the faces */
@@ -412,7 +420,7 @@ void cfds_solve(cfds_mesh * inm) {
     /* Start count time now */
     times_zero(timemes);
 
-    INFOMF("will cook every single var out there");
+    if (!inm->quiet && inm->verbosity) INFOMF("will cook every single var out there");
 
     compute_radius(inm);
     times_tick(timemes, "compute_radius()" + supress_compute);
@@ -444,14 +452,16 @@ void cfds_solve(cfds_mesh * inm) {
     compute_prelimiters(inm);
     times_tick(timemes, "compute_prelimiters()" + supress_compute);
 
-    INFOMF("everything is cooked... will now eat the CFD problem (runge kutta: 5 stages)");
+    if (!inm->quiet && inm->verbosity) INFOMF("everything is cooked... will now eat the CFD problem (runge kutta: 5 stages)");
 
     compute_rungekutta5(inm);
     times_tick(timemes, "compute_rungekutta5()" + supress_compute);
 
     /* Print time measurements */
-    printf("\n");
-    times_print(timemes);
+    if (!inm->quiet) {
+        if (inm->verbosity) printf("\n");
+        times_print(timemes, inm->verbosity);
+    }
 }
 
 void cfds_free(cfds_mesh * inm) {
@@ -460,7 +470,8 @@ void cfds_free(cfds_mesh * inm) {
      */
     static char *FUN = "free()";
 
-    WARNMF("NOT IMPLEMENTED YET; should be freeing up now");
+    if (!inm->quiet && inm->verbosity)
+        WARNMF("[NIY-free]");
 }
 
 
@@ -680,7 +691,7 @@ void compute_faces(mesh * inm, int ** edges, int sizee) {
             inm->edgeface[i] = faces + tc[i - 1];
     }
 
-    INFOMF("proccessed %d faces (%d edges; %d different borders)", p, sizee, inm->noborders);
+    if (!inm->quiet) INFOMF("proccessed %d faces (%d edges; %d different borders)", p, sizee, inm->noborders);
 }
 
 void compute_radius(mesh * inm) {
@@ -728,7 +739,8 @@ void compute_radius(mesh * inm) {
         free(yy);
         free(curve_radius);
     }
-    INFOMF("%d splines computed as well as %d radii", inm->noborders, t);
+    if (!inm->quiet && inm->verbosity)
+        INFOMF("%d splines computed as well as %d radii", inm->noborders, t);
 }
 
 void compute_midle_points(mesh * inm) {
@@ -1081,7 +1093,8 @@ void compute_stencil(mesh * inm) {
     const char *FUN = "compute_stencil()" + supress_compute;
     int i;
 
-    WARNMF("NOT FULLY IMPLEMENTED!");
+    if (!inm->quiet && inm->verbosity) WARNMF("[NIY-build]");
+
     /*#pragma message "compute_stencil(): NOT FULLY IMPLEMENTED!"*/
 
     /* allocate space for the stencils. TODO is that need so much mem? at least find an upper bound */
@@ -1104,17 +1117,18 @@ void compute_stencil(mesh * inm) {
         /*inm->vertices[i].cv_no_1l = inm->vertices[i].cv_no;*/
     }
 
-    /*int cv_no_min = (int) ceil((inm->notc - 1.0) * 1.5); refence: Ollivier-Gooch et al 2009 */
-    /*fori (inm->novertices) {
+    int cv_no_min = (int) ceil((inm->notc - 1.0) * 1.5); /*refence: Ollivier-Gooch et al 2009 */
+    fori (inm->novertices) {
         if (inm->vertices[i].cv_no < cv_no_min) {
-            int *m = cint(inm->novertices);
+            AERRMF("Dude, do you wanna compute fluid dynamics of without a mesh? Go build a fine one! [NIY-too-few-vertices]");
+            /*int *m = cint(inm->novertices);
             m[0] = 1;
 
             forj (inm->vertices[i].cv_no_1l)
                 m[inm->vertices[i].cv_stencil[j]] = 1;
-            free(m);
+            free(m);*/
         }
-    }*/
+    }
 
     free(posold);
     free(posnew);
@@ -1313,7 +1327,8 @@ void compute_coefmat_pseudoinverse(mesh * inm) {
         }
     }
 
-    INFOMF("Yo dawg, loop the loop the loop the... Let's pseudoinverse this");
+    if (!inm->quiet && inm->verbosity)
+        INFOMF("Yo dawg, loop the loop the loop the... Let's pseudoinverse this");
 
     double *m[inm->max_cvno + 1];
     forn (inm->novertices) {
@@ -1522,7 +1537,7 @@ void compute_rungekutta5(mesh * inm) {
 
     int maxs = (int) log10(inm->max_iter) + 1;
 
-    printf("\n");
+    if (!inm->quiet && inm->verbosity) printf("\n");
     running_solver = 1;
     while (residue > inm->nrt && iteration < inm->max_iter + 1 && !interrupt_solver) {
         //memcpy(uconserv_0[0], u[0], sizeof(double) * inm->novertices * NOU);
@@ -1564,7 +1579,9 @@ void compute_rungekutta5(mesh * inm) {
             forj (NOU)
                 uconserv[i][j] = uconserv_0[i][j] - dt[i] * r[i][j];
 
-        INFOMF("Residue[%*d]: %.50e", maxs, iteration, residue);
+        if (!inm->quiet && inm->showinner) {
+            INFOMF("Residue[%*d]: %.50e", maxs, iteration, residue);
+       }
 
         iteration++;
     }
@@ -1576,8 +1593,10 @@ void compute_rungekutta5(mesh * inm) {
     print2d("phi_chapel", phi_chapel, inm->novertices, NOU, 0);
     print3d(coef, inm->novertices, NOU, inm->notc, 0);*/
 
-    printf("\n");
-    INFOMF("Final residue: %.50e", residue);
+    if (!inm->quiet && inm->verbosity) printf("\n");
+    if (!inm->quiet) INFOMF("Final residue: %.50e", residue);
+
+    if (!(inm->quiet && !inm->fclassify)) WARNMF("Quality: [NIY-RK]");
 }
 
 
@@ -1997,7 +2016,7 @@ static void compute_rk_residue(mesh * inm, double **u, double ***coef, double **
                 if (inm->faces[i].flow[j] == INFLOW) { //fprintf(f, "%d inflow\n", i+1);
                     if (inm->mach_inflow > 1.0) {
                         /* TODO NEVER THE CASE, by now */
-                        INFOMF("Dude, you'r trying to fly over 1 MACH! You sould buy a better aircraft or it will crash [inflow-vi]");
+                        AERRMF("Dude, you'r trying to fly over 1 MACH! You sould buy a better aircraft or it will crash [NIY-inflow-vi]");
                     } else {
                         press = compute_rk_polinomial_lim(inm, u, coef, phi_chapel, indexof(inm->vertices, vi), 3, xg, yg);
                         compute_rk_r_subinflow(inm, fluxoinv, press, nx, ny);
@@ -2008,7 +2027,7 @@ static void compute_rk_residue(mesh * inm, double **u, double ***coef, double **
                     Mach = l2dist(vp1[1], vp1[2]) / sqrt(inm->gamma * vp1[3] / vp1[0]);
                     if (Mach > 1.0) {
                         /* TODO NEVER THE CASE, by now */
-                        INFOMF("Dude, you'r trying to fly over 1 MACH! You sould buy a better aircraft or it will crash [outflow-vi]");
+                        AERRMF("Dude, you'r trying to fly over 1 MACH! You sould buy a better aircraft or it will crash [NIY-outflow-vi]");
                     } else {
                         compute_rk_r_suboutflow(inm, fluxoinv, vp1, nx, ny);
                     }
@@ -2050,7 +2069,7 @@ static void compute_rk_residue(mesh * inm, double **u, double ***coef, double **
                 if (inm->faces[i].flow[j] == INFLOW) {
                     if (inm->mach_inflow > 1.0) {
                         /* TODO NEVER THE CASE, by now */
-                        INFOMF("Dude, you'r trying to fly over 1 MACH! You sould buy a better aircraft or it will crash [inflow-vf]");
+                        AERRMF("Dude, you'r trying to fly over 1 MACH! You sould buy a better aircraft or it will crash [NIY-inflow-vf]");
                     } else {
                         press = compute_rk_polinomial_lim(inm, u, coef, phi_chapel,  indexof(inm->vertices, vf), 3, xg, yg);
                         compute_rk_r_subinflow(inm, fluxoinv, press, nx, ny);
@@ -2061,7 +2080,7 @@ static void compute_rk_residue(mesh * inm, double **u, double ***coef, double **
                     Mach = l2dist(vp1[1], vp1[2]) / sqrt(inm->gamma * vp1[3] / vp1[0]);
                     if (Mach > 1.0) {
                         /* TODO NEVER THE CASE, by now */
-                        INFOMF("Dude, you'r trying to fly over 1 MACH! You sould buy a better aircraft or it will crash [outflow-vf]");
+                        AERRMF("Dude, you'r trying to fly over 1 MACH! You sould buy a better aircraft or it will crash [NIY-outflow-vf]");
                     } else {
                         compute_rk_r_suboutflow(inm, fluxoinv, vp2, nx, ny);
                     }
@@ -2242,7 +2261,7 @@ void times_tick(times * t, char * desc) {
         t->tticks = ntt;
 
         t->size *= 2;
-        INFOM("Just to let you know that you've reached the maximum time ticks allocated. I've increased it from %d to %d", t->size / 2, t->size);
+        //INFOM("Just to let you know that you've reached the maximum time ticks allocated. I've increased it from %d to %d", t->size / 2, t->size);
     }
 
     t->tticks[t->count].ticku = usage.ru_utime.tv_sec + (usage.ru_utime.tv_usec / 10.0e6);
@@ -2264,7 +2283,7 @@ void times_zero(times * t) {
     t->tticks[t->count - 1].skip = 1;
 }
 
-void times_print(times * t) {
+void times_print(times * t, int verbose) {
     int i;
     char tmp[256 + TIMEDESC];
     double elapsedu, elapseds,
@@ -2296,18 +2315,19 @@ void times_print(times * t) {
     int maxd = 6;
     int maxs = (int) log10(telapsedu+telapseds) + 1 + maxd + 1;
 
-    for (i = 1; i < t->count; i++) {
-        if (t->tticks[i].skip) {
-            continue;
+    if (verbose)
+        for (i = 1; i < t->count; i++) {
+            if (t->tticks[i].skip) {
+                continue;
+            }
+
+            elapsedu = t->tticks[i].ticku - t->tticks[i - 1].ticku;
+            elapseds = t->tticks[i].ticks - t->tticks[i - 1].ticks;
+
+            sprintf(tmp, "Time in %s", t->tticks[i].desc);
+            //printf("%-*s: %fs (user %fs + sys %fs)\n", maxmargin, tmp, elapsedu + elapseds, elapsedu, elapseds);
+            INFOM("%-*s: %*.*fs (user %*.*fs + sys %*.*fs)", maxmargin, tmp, maxs, maxd, elapsedu + elapseds, maxs, maxd, elapsedu, maxs, maxd, elapseds);
         }
-
-        elapsedu = t->tticks[i].ticku - t->tticks[i - 1].ticku;
-        elapseds = t->tticks[i].ticks - t->tticks[i - 1].ticks;
-
-        sprintf(tmp, "Time in %s", t->tticks[i].desc);
-        //printf("%-*s: %fs (user %fs + sys %fs)\n", maxmargin, tmp, elapsedu + elapseds, elapsedu, elapseds);
-        INFOM("%-*s: %*.*fs (user %*.*fs + sys %*.*fs)", maxmargin, tmp, maxs, maxd, elapsedu + elapseds, maxs, maxd, elapsedu, maxs, maxd, elapseds);
-    }
 
     /* Total time */
     sprintf(tmp, "Total time");
@@ -2326,16 +2346,16 @@ void sig_handler(int signo) {
     /*
      * This handle signalss
      */
-    static char *FUN = "";
+    //static char *FUN = "";
     if (signo == SIGINT) {
         printf("\r");
         if (!running_solver) {
-            INFOMF("SIGINT received. Aborting!");
+            AERRM("SIGINT received. Aborting!");
             exit(0);
         }
 
         interrupt_solver = 1;
-        INFOMF("SIGINT received. Interrupting the solver as soon as we can!");
+        INFOM("SIGINT received. Interrupting the solver as soon as we can!");
     }
 }
 

@@ -263,6 +263,9 @@ static int validate_args(ui_args * args) {
 void static print_args(ui_args * args, struct argp argp) {
     /* TODO: Print input settings ONLY IF VERBOSE AND QUIET ALLOWS THAT */
 
+    if (args->quiet)
+        return;
+
     printf("\n");
     argp_help (&argp, stdout, ARGP_HELP_PRE_DOC, 0);
     printf("\n");
@@ -283,10 +286,11 @@ void static print_args(ui_args * args, struct argp argp) {
     Order             : %d\n\
     CFL               : %e\n\
     Max interations   : %d\n\
-    Residual threshold: %e\n\n",
+    Residual threshold: %e\n",
     args->order, args->cfl, args->max_iterations, args->nr_threashold);
 
-    printf(BOLD"Verbose info: "RESET"%s%s%s\b\b \n",
+    if (args->verbose || args->showinner)
+        printf("\n"BOLD"Verbose info: "RESET"%s%s%s\b\b \n",
     (/*!args->f_ds && !args->f_plot && !args->f_pc && !args->f_residue && */!args->verbose) ? "normal, " : "",
     args->verbose   ? "more verbose, " : "",
     args->showinner ? "show details during iterations, " : ""/*,

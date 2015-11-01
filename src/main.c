@@ -19,6 +19,10 @@ int main(int argc, char ** argv) {
     inargs->cfl            = args->cfl;
     inargs->max_iterations = args->max_iterations;
     inargs->nr_threashold  = args->nr_threashold;
+    inargs->verbose        = args->verbose;
+    inargs->quiet          = args->quiet;
+    inargs->showinner      = args->showinner;
+    inargs->fclassify      = args->fclassify;
 
 
     cfdrd_ds ds = cfdrd_readfile_auto(args->mesh_file);
