@@ -26,7 +26,8 @@ clean:
 	rm -fr ${OBJ}
 
 run: $(OUT)
-	./$(OUT) mesh/naca0012_2261VERT.mesh -p1
+#	./$(OUT) mesh/naca0012_2261VERT.mesh -p1
+	./$(OUT) mesh/naca0012_2261VERT.mesh -O2 -C4.5 -I5 -T0.001
 
 force: clean ${OUT}
 
