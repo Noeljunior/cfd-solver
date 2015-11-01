@@ -241,7 +241,22 @@ typedef struct face {
     flow            *flow;                  /* type of flow flowing through each gausses' \tipoPG/ */
 } face;
 
+/*
+ * Time measurement
+ */
+#define TIMEDESC 1024
+typedef struct times {
+    struct ttick    *tticks;                /* the time measurements */
+    int             size;                   /* the size of above array */
+    int             count;                  /* how many used untill now */
+} times;
 
+typedef struct ttick {
+    char            desc[TIMEDESC];         /* a description of the this measurement */
+    double          ticku;                  /* the actual time tick: user time */
+    double          ticks;                  /* the actual time tick: sys  time */
+    char            skip;                   /* -1: init; 0: tick; 1: skip the measurement */
+} ttick;
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *
@@ -285,13 +300,14 @@ flow            compute_wall_condiction(border b, double inflow_angle, double xx
 /*
  * Time measurement
  */
-void           time_tick(char * comment);
-void           time_print();
-#define TN 32
-int            tcount           = 0;
-char           twhere[TN][1024] = {0};
-struct timeval ttick[TN][2]     = {0};
-int            supress_compute  = sizeof("compute");
+times *         times_init(int maxmes);
+void            times_tick(times * t, char * desc);
+void            times_pause(times * t);
+void            times_print(times * t);
+/* keep time-tracking */
+times *         timemes;
+int             supress_compute  = sizeof("compute");
+
 
 /*
  * Signal handling
@@ -356,6 +372,7 @@ cfds_mesh * cfds_init(cfds_args ina, double ** vertices, int sizev, int ** edges
 
     /* copy vertices, edges and triangles to the internal data struct */
     int i;
+    timemes = times_init(32);
 
     inm->novertices = sizev;
     inm->vertices = (vertex *) calloc(inm->novertices, sizeof(vertex));
@@ -376,9 +393,13 @@ cfds_mesh * cfds_init(cfds_args ina, double ** vertices, int sizev, int ** edges
     }
 
     INFOMF("%d vertices, %d triangles and %d edges successfuly added.", sizev, sizet, sizee);
+    times_tick(timemes, "cfds_init()");
 
     /* compute the faces */
     compute_faces(inm, edges, sizee);
+    times_tick(timemes, "compute_faces()" + supress_compute);
+
+    //times_pause(timemes);
 
     return inm;
 }
@@ -396,8 +417,6 @@ void cfds_solve(cfds_mesh * inm) {
 
     /* Init time measurements */
 
-    time_tick(0);
-
     /* TODO
         + TARGET: iter: 10 nr: 5.170028e+01
                   iter: 25 nr: 3.56607624252817245746882690582424402236938476562500e+01
@@ -409,43 +428,43 @@ void cfds_solve(cfds_mesh * inm) {
     INFOMF("will cook every single var out there");
 
     compute_radius(inm);
-    time_tick("compute_radius()" + supress_compute);
+    times_tick(timemes, "compute_radius()" + supress_compute);
 
     compute_midle_points(inm);
-    time_tick("compute_midle_points()" + supress_compute);
+    times_tick(timemes, "compute_midle_points()" + supress_compute);
 
     compute_legendre(inm);
-    time_tick("compute_legendre()" + supress_compute);
+    times_tick(timemes, "compute_legendre()" + supress_compute);
 
     compute_centroids(inm);
-    time_tick("compute_centroids()" + supress_compute);
+    times_tick(timemes, "compute_centroids()" + supress_compute);
 
     compute_momentum(inm);
-    time_tick("compute_momentum()" + supress_compute);
+    times_tick(timemes, "compute_momentum()" + supress_compute);
 
     compute_projection(inm);
-    time_tick("compute_projection()" + supress_compute);
+    times_tick(timemes, "compute_projection()" + supress_compute);
 
     compute_stencil(inm);
-    time_tick("compute_stencil()" + supress_compute);
+    times_tick(timemes, "compute_stencil()" + supress_compute);
 
     compute_gausses(inm);
-    time_tick("compute_gausses()" + supress_compute);
+    times_tick(timemes, "compute_gausses()" + supress_compute);
 
     compute_coefmat_pseudoinverse(inm);
-    time_tick("compute_coefmat_pseudoinverse()" + supress_compute);
+    times_tick(timemes, "compute_coefmat_pseudoinverse()" + supress_compute);
 
     compute_prelimiters(inm);
-    time_tick("compute_prelimiters()" + supress_compute);
+    times_tick(timemes, "compute_prelimiters()" + supress_compute);
 
     INFOMF("everything is cooked... will now eat the CFD problem (runge kutta: 5 stages)");
 
     compute_rungekutta5(inm);
-    time_tick("compute_rungekutta5()" + supress_compute);
+    times_tick(timemes, "compute_rungekutta5()" + supress_compute);
 
     /* Print time measurements */
     printf("\n");
-    time_print();
+    times_print(timemes);
 }
 
 void cfds_free(cfds_mesh * inm) {
@@ -2211,56 +2230,87 @@ double * compute_radius_spline(int N ,double *tt ,double *xx, double *yy) {
  *                                             TIME MEASUREMENT
  *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
-void time_tick(char * comment) {
-    struct rusage usage;
-    getrusage(RUSAGE_SELF, &usage);
-    ttick[tcount][0] = usage.ru_utime;
-    ttick[tcount][1] = usage.ru_stime;
+times * times_init(int initsize) {
+    times * t = (times *) malloc(sizeof(times));
 
-    if (comment == NULL)
-        sprintf(twhere[tcount], "step %d", tcount);
-    else
-        sprintf(twhere[tcount], "'%s'", comment);
+    t->tticks = (ttick *) malloc(sizeof(ttick) * initsize);
+    t->size   = initsize;
+    t->count   = 0;
 
-    tcount++;
+    /* the initial tick */
+    times_tick(t, "");
+    t->tticks[t->count - 1].skip = -1;
+
+    return t;
 }
 
-void time_print() {
-    /*
-     * This computes TODO
-     */
-    static char *FUN = "";
-    int i;
-    char tmp[1024];
-    double elapsedu, elapseds;
+void times_tick(times * t, char * desc) {
+    struct rusage usage;
+    getrusage(RUSAGE_SELF, &usage);
 
+    /* if we reach the maximum size, allocate more! */
+    if (t->count == t->size) {
+        ttick    *ntt = (ttick *) malloc(sizeof(ttick) * t->size * 2);
+        memcpy(ntt, t->tticks, sizeof(ttick) * t->size );
+        free(t->tticks);
+        t->tticks = ntt;
+
+        t->size *= 2;
+        INFOM("Just to let you know that you've reached the maximum time ticks allocated. I've increased it from %d to %d", t->size / 2, t->size);
+    }
+
+    t->tticks[t->count].ticku = usage.ru_utime.tv_sec + (usage.ru_utime.tv_usec / 10.0e6);
+    t->tticks[t->count].ticks = usage.ru_stime.tv_sec + (usage.ru_stime.tv_usec / 10.0e6);
+
+    if (desc == NULL)
+        sprintf(t->tticks[t->count].desc, "step %d", t->count);
+    /*else if (desc[0] == '\0')
+        t->tticks[t->count].desc[0] = '\0';*/
+    else
+        sprintf(t->tticks[t->count].desc, "'%s'", desc);
+
+    t->tticks[t->count].skip = 0;
+    t->count++;
+}
+
+void times_pause(times * t) {
+    times_tick(t, "");
+    t->tticks[t->count - 1].skip = 1;
+}
+
+void times_print(times * t) {
+    int i;
+    char tmp[256 + TIMEDESC];
+    double elapsedu, elapseds, lelapsedu, lelapseds,
+           telapsedu = 0.0, telapseds = 0.0;
+
+    /* compute the maximum string lengh */
     int maxmargin = 0;
-    for (i = 1; i < tcount; i++) {
-        int m = strlen(twhere[i]);
+    for (i = 1; i < t->count; i++) {
+        int m = strlen(t->tticks[i].desc);
             maxmargin = m > maxmargin ? m : maxmargin;
     }
     maxmargin += 8;
 
-    for (i = 1; i < tcount; i++) {
-        elapsedu = (ttick[i][0].tv_sec + (ttick[i][0].tv_usec / 10.0e6))
-                  - (ttick[i - 1][0].tv_sec + (ttick[i - 1][0].tv_usec / 10.0e6));
-        elapseds = (ttick[i][1].tv_sec + (ttick[i][1].tv_usec / 10.0e6))
-                  - (ttick[i - 1][1].tv_sec + (ttick[i - 1][1].tv_usec / 10.0e6));
 
-        sprintf(tmp, "Time in %s", twhere[i]);
+
+    for (i = 1; i < t->count; i++) {
+        /* TODO detect a skip tick! */
+        elapsedu = t->tticks[i].ticku - t->tticks[i - 1].ticku;
+        elapseds = t->tticks[i].ticks - t->tticks[i - 1].ticks;
+
+        telapsedu += elapsedu;
+        telapseds += elapseds;
+
+        sprintf(tmp, "Time in %s", t->tticks[i].desc);
         //printf("%-*s: %fs (user %fs + sys %fs)\n", maxmargin, tmp, elapsedu + elapseds, elapsedu, elapseds);
-        INFOMF("%-*s: %fs (user %fs + sys %fs)", maxmargin, tmp, elapsedu + elapseds, elapsedu, elapseds);
+        INFOM("%-*s: %fs (user %fs + sys %fs)", maxmargin, tmp, elapsedu + elapseds, elapsedu, elapseds);
     }
 
     /* Total time */
-    elapsedu = (ttick[tcount-1][0].tv_sec + (ttick[tcount-1][0].tv_usec / 10.0e6))
-              - (ttick[0][0].tv_sec + (ttick[0][0].tv_usec / 10.0e6));
-    elapseds = (ttick[tcount-1][1].tv_sec + (ttick[tcount-1][1].tv_usec / 10.0e6))
-              - (ttick[0][1].tv_sec + (ttick[0][1].tv_usec / 10.0e6));
-
     sprintf(tmp, "Total time");
     //printf("%-*s: %fs (user %fs + sys %fs)\n", maxmargin, tmp, elapsedu + elapseds, elapsedu, elapseds);
-    INFOMF("%-*s: %fs (user %fs + sys %fs)", maxmargin, tmp, elapsedu + elapseds, elapsedu, elapseds);
+    INFOM("%-*s: %fs (user %fs + sys %fs)", maxmargin, tmp, telapsedu + telapseds, telapsedu, telapseds);
 }
 
 
