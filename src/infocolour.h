@@ -45,7 +45,7 @@
 /*
  *  INFO/WARN/ERR configs
  */
-#define    _ICCS 4 /* the size of MOD */
+#define    _ICCS 3 /* the size of MOD */
 
 /*
  *  COLOURS configs
@@ -68,23 +68,23 @@
 
 /* INFO messages */
 #define INFOMF(...)         MSGD(INFOT, "INFO", MOD, FUN, __VA_ARGS__)
-#define INFOM(...)          MSGD(INFOT, "INFO", 0  , FUN, __VA_ARGS__)
-#define INFO(...)           MSGD(INFOT, 0     , 0  , FUN, __VA_ARGS__)
+#define INFOM(...)          MSGD(INFOT, "INFO", MOD, "" , __VA_ARGS__)
+#define INFO(...)           MSGD(INFOT, "INFO", "" , "" , __VA_ARGS__)
 
 /* WARNING messages */
 #define WARNMF(...)         MSGD(WARNT, "WARN", MOD, FUN, __VA_ARGS__)
-#define WARNM(...)          MSGD(WARNT, "WARN", MOD, 0  , __VA_ARGS__)
-#define WARN(...)           MSGD(WARNT, "WARN", 0  , 0  , __VA_ARGS__)
+#define WARNM(...)          MSGD(WARNT, "WARN", MOD, "" , __VA_ARGS__)
+#define WARN(...)           MSGD(WARNT, "WARN", "" , "" , __VA_ARGS__)
 
 /* ERROR messages */
 #define ERRMF(...)          MSGD(ERRT,  "ERR" , MOD, FUN, __VA_ARGS__)
-#define ERRM(...)           MSGD(ERRT,  "ERR" , MOD, 0  , __VA_ARGS__)
-#define ERR(...)            MSGD(ERRT,  "ERR" , 0  , 0  , __VA_ARGS__)
+#define ERRM(...)           MSGD(ERRT,  "ERR" , MOD, "" , __VA_ARGS__)
+#define ERR(...)            MSGD(ERRT,  "ERR" , "" , "" , __VA_ARGS__)
 
 /* ERROR messages and exit */
 #define AERRMF(...)         MSGD(ERRT,  "ERR" , MOD, FUN, __VA_ARGS__); exit(0);
-#define AERRM(...)          MSGD(ERRT,  "ERR" , MOD, 0  , __VA_ARGS__); exit(0);
-#define AERR(...)           MSGD(ERRT,  "ERR" , 0  , 0  , __VA_ARGS__); exit(0);
+#define AERRM(...)          MSGD(ERRT,  "ERR" , MOD, "" , __VA_ARGS__); exit(0);
+#define AERR(...)           MSGD(ERRT,  "ERR" , "" , "" , __VA_ARGS__); exit(0);
 
 
 
