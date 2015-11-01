@@ -302,7 +302,7 @@ flow            compute_wall_condiction(border b, double inflow_angle, double xx
  */
 times *         times_init(int maxmes);
 void            times_tick(times * t, char * desc);
-void            times_pause(times * t);
+void            times_zero(times * t);
 void            times_print(times * t);
 /* keep time-tracking */
 times *         timemes;
@@ -372,7 +372,7 @@ cfds_mesh * cfds_init(cfds_args ina, double ** vertices, int sizev, int ** edges
 
     /* copy vertices, edges and triangles to the internal data struct */
     int i;
-    timemes = times_init(32);
+    timemes = times_init(16);
 
     inm->novertices = sizev;
     inm->vertices = (vertex *) calloc(inm->novertices, sizeof(vertex));
@@ -399,8 +399,6 @@ cfds_mesh * cfds_init(cfds_args ina, double ** vertices, int sizev, int ** edges
     compute_faces(inm, edges, sizee);
     times_tick(timemes, "compute_faces()" + supress_compute);
 
-    //times_pause(timemes);
-
     return inm;
 }
 
@@ -415,15 +413,8 @@ void cfds_solve(cfds_mesh * inm) {
     signal(SIGINT, sig_handler);
     /*INFOMF("Couldn't handle SIGINT signal. Not sure why (are you handling it before?)");*/
 
-    /* Init time measurements */
-
-    /* TODO
-        + TARGET: iter: 10 nr: 5.170028e+01
-                  iter: 25 nr: 3.56607624252817245746882690582424402236938476562500e+01
-
-        * set default constants/rules/things based on test case
-
-     */
+    /* Start count time now */
+    times_zero(timemes);
 
     INFOMF("will cook every single var out there");
 
@@ -489,7 +480,6 @@ void compute_faces(mesh * inm, int ** edges, int sizee) {
     const char *FUN = "compute_faces()" + supress_compute;
     inm->nofaces = inm->novertices + inm->notriangles;
     face * faces = (face *) malloc(sizeof(face) * inm->nofaces);
-
     int i, j, p, t;
     int tc[16] = {0};
 
@@ -2273,7 +2263,7 @@ void times_tick(times * t, char * desc) {
     t->count++;
 }
 
-void times_pause(times * t) {
+void times_zero(times * t) {
     times_tick(t, "");
     t->tticks[t->count - 1].skip = 1;
 }
@@ -2281,7 +2271,7 @@ void times_pause(times * t) {
 void times_print(times * t) {
     int i;
     char tmp[256 + TIMEDESC];
-    double elapsedu, elapseds, lelapsedu, lelapseds,
+    double elapsedu, elapseds,
            telapsedu = 0.0, telapseds = 0.0;
 
     /* compute the maximum string lengh */
@@ -2294,23 +2284,39 @@ void times_print(times * t) {
 
 
 
+    /* count total */
     for (i = 1; i < t->count; i++) {
-        /* TODO detect a skip tick! */
+        if (t->tticks[i].skip) {
+            continue;
+        }
+
         elapsedu = t->tticks[i].ticku - t->tticks[i - 1].ticku;
         elapseds = t->tticks[i].ticks - t->tticks[i - 1].ticks;
 
         telapsedu += elapsedu;
         telapseds += elapseds;
+    }
+
+    int maxd = 6;
+    int maxs = (int) log10(telapsedu+telapseds) + 1 + maxd + 1;
+
+    for (i = 1; i < t->count; i++) {
+        if (t->tticks[i].skip) {
+            continue;
+        }
+
+        elapsedu = t->tticks[i].ticku - t->tticks[i - 1].ticku;
+        elapseds = t->tticks[i].ticks - t->tticks[i - 1].ticks;
 
         sprintf(tmp, "Time in %s", t->tticks[i].desc);
         //printf("%-*s: %fs (user %fs + sys %fs)\n", maxmargin, tmp, elapsedu + elapseds, elapsedu, elapseds);
-        INFOM("%-*s: %fs (user %fs + sys %fs)", maxmargin, tmp, elapsedu + elapseds, elapsedu, elapseds);
+        INFOM("%-*s: %*.*fs (user %*.*fs + sys %*.*fs)", maxmargin, tmp, maxs, maxd, elapsedu + elapseds, maxs, maxd, elapsedu, maxs, maxd, elapseds);
     }
 
     /* Total time */
     sprintf(tmp, "Total time");
     //printf("%-*s: %fs (user %fs + sys %fs)\n", maxmargin, tmp, elapsedu + elapseds, elapsedu, elapseds);
-    INFOM("%-*s: %fs (user %fs + sys %fs)", maxmargin, tmp, telapsedu + telapseds, telapsedu, telapseds);
+    INFOM(BOLD"%-*s"RESET": "BOLD"%*.*fs"RESET" (user %*.*fs + sys %*.*fs)", maxmargin, tmp, maxs, maxd, telapsedu + telapseds, maxs, maxd, telapsedu, maxs, maxd, telapseds);
 }
 
 
