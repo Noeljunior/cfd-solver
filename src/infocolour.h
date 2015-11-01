@@ -57,34 +57,34 @@
  *                                          INFO/WARN/ERR
  *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
-#define MSGD(colour, type, mod, fun, ...)\
+#define MSGD(colour, type, fs, mod, fun, ...)\
                          ({ char mi = mod != NULL && mod[0] != '\0' ? 1 : 0;\
                             char fi = fun != NULL && fun[0] != '\0' ? 1 : 0;\
-                            printf(colour "%s"RESET"%s%*s%s %s%s", type,\
+                            fprintf(fs, colour "%s"RESET"%s%*s%s %s%s", type,\
                                 mi ? "[" : "", _ICCS, mi ? mod : "", mi ? "]" : "",\
                                 fi ? fun : "", fi ? ": " : ""); \
-                            printf(__VA_ARGS__); \
-                            printf("\n");})
+                            fprintf(fs, __VA_ARGS__); \
+                            fprintf(fs, "\n");})
 
 /* INFO messages */
-#define INFOMF(...)         MSGD(INFOT, "INFO", MOD, FUN, __VA_ARGS__)
-#define INFOM(...)          MSGD(INFOT, "INFO", MOD, "" , __VA_ARGS__)
-#define INFO(...)           MSGD(INFOT, "INFO", "" , "" , __VA_ARGS__)
+#define INFOMF(...)         MSGD(INFOT, "INFO", stdout, MOD, FUN, __VA_ARGS__)
+#define INFOM(...)          MSGD(INFOT, "INFO", stdout, MOD, "" , __VA_ARGS__)
+#define INFO(...)           MSGD(INFOT, "INFO", stdout, "" , "" , __VA_ARGS__)
 
 /* WARNING messages */
-#define WARNMF(...)         MSGD(WARNT, "WARN", MOD, FUN, __VA_ARGS__)
-#define WARNM(...)          MSGD(WARNT, "WARN", MOD, "" , __VA_ARGS__)
-#define WARN(...)           MSGD(WARNT, "WARN", "" , "" , __VA_ARGS__)
+#define WARNMF(...)         MSGD(WARNT, "WARN", stdout, MOD, FUN, __VA_ARGS__)
+#define WARNM(...)          MSGD(WARNT, "WARN", stdout, MOD, "" , __VA_ARGS__)
+#define WARN(...)           MSGD(WARNT, "WARN", stdout, "" , "" , __VA_ARGS__)
 
 /* ERROR messages */
-#define ERRMF(...)          MSGD(ERRT,  "ERR" , MOD, FUN, __VA_ARGS__)
-#define ERRM(...)           MSGD(ERRT,  "ERR" , MOD, "" , __VA_ARGS__)
-#define ERR(...)            MSGD(ERRT,  "ERR" , "" , "" , __VA_ARGS__)
+#define ERRMF(...)          MSGD(ERRT,  "ERR" , stderr, MOD, FUN, __VA_ARGS__)
+#define ERRM(...)           MSGD(ERRT,  "ERR" , stderr, MOD, "" , __VA_ARGS__)
+#define ERR(...)            MSGD(ERRT,  "ERR" , stderr, "" , "" , __VA_ARGS__)
 
 /* ERROR messages and exit */
-#define AERRMF(...)         MSGD(ERRT,  "ERR" , MOD, FUN, __VA_ARGS__); exit(0);
-#define AERRM(...)          MSGD(ERRT,  "ERR" , MOD, "" , __VA_ARGS__); exit(0);
-#define AERR(...)           MSGD(ERRT,  "ERR" , "" , "" , __VA_ARGS__); exit(0);
+#define AERRMF(...)         MSGD(ERRT,  "ERR" , stderr, MOD, FUN, __VA_ARGS__); exit(0);
+#define AERRM(...)          MSGD(ERRT,  "ERR" , stderr, MOD, "" , __VA_ARGS__); exit(0);
+#define AERR(...)           MSGD(ERRT,  "ERR" , stderr, "" , "" , __VA_ARGS__); exit(0);
 
 
 

@@ -25,9 +25,12 @@ int main(int argc, char ** argv) {
     inargs->fclassify      = args->fclassify;
 
 
-    cfdrd_ds ds = cfdrd_readfile_auto(args->mesh_file);
+    cfdrd_ds * ds = cfdrd_readfile_auto(args->mesh_file, args->rstdin, args->mftype, args->quiet);
 
-    cfds_mesh *m = cfds_init(*inargs, ds.vertices, ds.sizev, ds.edges, ds.sizee, ds.triangles, ds.sizet);
+    cfds_mesh *m = cfds_init(inargs, ds->vertices, ds->sizev, ds->edges, ds->sizee, ds->triangles, ds->sizet);
+
+    cfdrd_free(ds);
+
     cfds_solve(m);
     cfds_free(m);
 

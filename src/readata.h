@@ -44,6 +44,7 @@ typedef struct cfdrd_ds {
 /*
  * Try to find out the version of file and read it accordingly
  */
-cfdrd_ds        cfdrd_readfile_auto(char *path);
+cfdrd_ds *      cfdrd_readfile_auto(char *path, int rstdin, int force, int bequiet);
+void            cfdrd_free(cfdrd_ds * ds);
 
 

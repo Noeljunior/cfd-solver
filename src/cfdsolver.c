@@ -40,7 +40,7 @@ static char *MOD = "SLV";
 
 /*                      TODO list
 
-    * integra this with the meshviewer!
+    * integrate this with the meshviewer!
 
     * * NOT FOR NOW / NOT IMPORTANT/RELEVANT **
     + verbose to files for stats/plots
@@ -327,7 +327,7 @@ void            print3d(double ***u, int m, int l, int c, int new);
  *                                             EXTERNAL INTERFACE
  *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
-cfds_mesh * cfds_init(cfds_args ina, double ** vertices, int sizev, int ** edges, int sizee, int ** triangles, int sizet) {
+cfds_mesh * cfds_init(cfds_args * ina, double ** vertices, int sizev, int ** edges, int sizee, int ** triangles, int sizet) {
     /*
      * This initializes the internal data struct and returns it as ANONYMOUS
      */
@@ -337,10 +337,10 @@ cfds_mesh * cfds_init(cfds_args ina, double ** vertices, int sizev, int ** edges
     mesh * inm = (mesh *) calloc(1, sizeof(mesh));
 
     /* copy input arguments to the internal data struct */
-    inm->order                  = ina.order;
-    inm->cfl                    = ina.cfl;
-    inm->max_iter               = ina.max_iterations;
-    inm->nrt                    = ina.nr_threashold;
+    inm->order                  = ina->order;
+    inm->cfl                    = ina->cfl;
+    inm->max_iter               = ina->max_iterations;
+    inm->nrt                    = ina->nr_threashold;
 
     /* compute the values and set the constants */
     inm->nommt                  = (int) (ceil((inm->order + 1.0) / 2.0));
@@ -369,10 +369,10 @@ cfds_mesh * cfds_init(cfds_args ina, double ** vertices, int sizev, int ** edges
     inm->M2                     = 0.85;
 
     /* copy settings */
-    inm->verbosity              = ina.verbose;
-    inm->quiet                  = ina.quiet;
-    inm->showinner              = ina.showinner;
-    inm->fclassify              = ina.fclassify;
+    inm->verbosity              = ina->verbose;
+    inm->quiet                  = ina->quiet;
+    inm->showinner              = ina->showinner;
+    inm->fclassify              = ina->fclassify;
 
     /* copy vertices, edges and triangles to the internal data struct */
     int i;

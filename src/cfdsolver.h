@@ -49,7 +49,7 @@ typedef struct cfds_args {
 /*
  * Init and get a pointer to the internal data struct
  */
-cfds_mesh *     cfds_init(cfds_args ina, double ** vertices, int sizev, int ** edges, int sizee, int ** triangles, int sizet);
+cfds_mesh *     cfds_init(cfds_args * ina, double ** vertices, int sizev, int ** edges, int sizee, int ** triangles, int sizet);
 
 /*
  * Solve the problem CFD problem

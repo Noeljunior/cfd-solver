@@ -23,7 +23,7 @@
 /*
  *  This file name, used in INFO/WARN/ERR msgs
  */
-/*static char *MOD = "RD";*/
+static char *MOD = "RD";
 
 
 /*                      TODO list
@@ -43,7 +43,8 @@
  *                                             FUNCTION DECLARATION and globals definitions
  *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
-
+void        read_new(FILE * f, char * fl, cfdrd_ds * ds);
+void        read_old(FILE * f, char * fl, cfdrd_ds * ds);
 
 
 
@@ -54,78 +55,75 @@
  *                                             EXTERNAL INTERFACE
  *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
-cfdrd_ds cfdrd_readfile_auto(char *path) {
-    /*
-     * This computes the CFD problem as Juan does
-     */
-    /*static char *FUN = "readfile_auto()";*/
-    cfdrd_ds ds;
+cfdrd_ds * cfdrd_readfile_auto(char *path, int rstdin, int force, int bequiet) {
+    static char *FUN = "cfdrd_readfile_auto()";
+    cfdrd_ds * ds = (cfdrd_ds *) malloc(sizeof(cfdrd_ds));
+    FILE *f;
+    char *fl;
+    size_t s;
+
+    /* select file source */
+    if (rstdin) f = stdin;
+    else        f = fopen(path, "r");
+
+    /* read the first line*/
+    fl = NULL;
+    getline(&fl, &s, f);
+
+    /* call the righ parser */
+    if      (force == 1) read_new(f, fl, ds);
+    else if (force == 2) read_old(f, fl, ds);
+    else {
+        /* take a choice based on first line */
+        int i, old = 1, new = 1;
+        char *cmp = "MeshVersionFormatted";
+        char tmp[1024];
+        sscanf(fl, "%s", tmp);
+        for (i = 0; i < 20; i++) {
+            if (tmp[i] != cmp[i]) {
+                old = 0;
+                break;
+            }
+        }
+
+        if (sscanf(fl, "%d", &i) != 1)
+            new = 0;
+
+        if (old == new) { /* oops! */
+            AERRMF("Hey! Give me a well known mesh file, please...");
+        }
 
 
-    double **vertices;
-    int **edges, **triangles;
-    int    sizev, sizee, sizet;
+        if      (new == 1) read_new(f, fl, ds);
+        else if (old == 1) read_old(f, fl, ds);
 
-    /* JUAN file type */
-    int i, t1, t2, t3;
-    FILE * f = fopen(path, "r");
-    char trash[1024];
-    int  trashi;
-    fscanf(f, "%s %d", trash, &trashi);           /* trash */
-    fscanf(f, "%s %d", trash, &trashi);           /* trash */
-    fscanf(f, "%s %d", trash, &sizev);    /* number of vertices */
-
-    vertices       = (double **) malloc(sizeof(double *) * sizev);
-    vertices[0]    = (double * ) calloc(sizev * 2, sizeof(double));
-    for (i = 1; i < sizev; i++)
-        vertices[i] = vertices[0] + i * 2;
-
-    for (i = 0; i < sizev; i++) {           /* vertices */
-        fscanf(f, "%lf %lf %d %d", &vertices[i][0], &vertices[i][1], &trashi, &trashi);
+        INFOMF("Input file was detected as %s file format", new ? "new" : "old");
     }
+    free(fl);
 
-    fscanf(f, "%s %d", trash, &sizee);       /* number of edges */
-
-    edges       = (int **) malloc(sizeof(int *) * sizee);
-    edges[0]    = (int * ) calloc(sizee * 3, sizeof(int));
-    for (i = 1; i < sizee; i++)
-        edges[i] = edges[0] + i * 3;
-
-    for (i = 0; i < sizee; i++) {              /* edges */
-        fscanf(f, "%d %d %d", &edges[i][0], &edges[i][1], &edges[i][2]);
-        edges[i][0]--;
-        edges[i][1]--;
-        edges[i][2]--;
-    }
-
-    fscanf(f, "%s %d", trash, &sizet);   /* number of triangles */
-    triangles       = (int **) malloc(sizeof(int *) * sizet);
-    triangles[0]    = (int * ) calloc(sizet * 3, sizeof(int));
-    for (i = 1; i < sizet; i++)
-        triangles[i] = triangles[0] + i * 3;
-
-    for (i = 0; i < sizet; i++) {         /* triangles */
-        fscanf(f, "%d %d %d %d", &t1, &t2, &t3, &trashi);
-        triangles[i][0]  = t1 - 1;
-        triangles[i][1]  = t2 - 1;
-        triangles[i][2]  = t3 - 1;
-    }
-
-    fscanf(f, "%s", trash);                       /* EOF */
-    fclose(f);
-
-    /* TODO read directly to here */
-    ds.vertices  = vertices;
-    ds.sizev     = sizev;
-
-    ds.edges     = edges;
-    ds.sizee     = sizee;
-
-    ds.triangles = triangles;
-    ds.sizet     = sizet;
+    /* close the file if needed */
+    if (!rstdin)
+        fclose(f);
 
     return ds;
 }
+
+void cfdrd_free(cfdrd_ds * ds) {
+    if (!ds->vertices) {
+        free(ds->vertices[0]);
+        free(ds->vertices);
+    }
+    if (!ds->edges) {
+        free(ds->edges[0]);
+        free(ds->edges);
+    }
+    if (!ds->triangles) {
+        free(ds->triangles[0]);
+        free(ds->triangles);
+    }
+    free(ds);
+}
+
 
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -133,4 +131,84 @@ cfdrd_ds cfdrd_readfile_auto(char *path) {
  *                                             READATA
  *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+void read_new(FILE * f, char * fl, cfdrd_ds * ds) {
+    /*
+     *  standard file type
+     */
+    int i;
+
+    sscanf(fl, "%d", &ds->sizev);              /* number of vertices */
+    ds->vertices       = (double **) malloc(sizeof(double *) * ds->sizev);
+    ds->vertices[0]    = (double * ) calloc(ds->sizev * 2, sizeof(double));
+    for (i = 0; i < ds->sizev; i++) {           /* vertices */
+        ds->vertices[i] = ds->vertices[0] + i * 2;
+        fscanf(f, "%lf %lf", ds->vertices[i], ds->vertices[i] + 1);
+    }
+
+    fscanf(f, "%d", &ds->sizee);                 /* number of edges */
+    ds->edges       = (int **) malloc(sizeof(int *) * ds->sizee);
+    ds->edges[0]    = (int * ) calloc(ds->sizee * 3, sizeof(int));
+    for (i = 0; i < ds->sizee; i++) {             /* edges */
+        ds->edges[i] = ds->edges[0] + i * 3;
+        fscanf(f, "%d %d %d", ds->edges[i], ds->edges[i] + 1, ds->edges[i] + 2);
+    }
+
+    fscanf(f, "%d", &ds->sizet);             /* number of triangles */
+    ds->triangles       = (int **) malloc(sizeof(int *) * ds->sizet);
+    ds->triangles[0]    = (int * ) calloc(ds->sizet * 3, sizeof(int));
+    for (i = 0; i < ds->sizet; i++) {         /* triangles */
+        ds->triangles[i] = ds->triangles[0] + i * 3;
+        fscanf(f, "%d %d %d", ds->triangles[i], ds->triangles[i] + 1, ds->triangles[i] + 2);
+    }
+}
+
+void read_old(FILE * f, char * fl, cfdrd_ds * ds) {
+    /*
+     *  JUAN file type
+     */
+    int i;
+    //FILE * f = fopen(path, "r");
+    char trash[1024];
+    int  trashi;
+    sscanf(fl, "%s %d", trash, &trashi);          /* trash */
+    fscanf(f, "%s %d", trash, &trashi);           /* trash */
+
+    fscanf(f, "%s %d", trash, &ds->sizev);    /* number of vertices */
+    ds->vertices       = (double **) malloc(sizeof(double *) * ds->sizev);
+    ds->vertices[0]    = (double * ) calloc(ds->sizev * 2, sizeof(double));
+    for (i = 0; i < ds->sizev; i++) {           /* vertices */
+        ds->vertices[i] = ds->vertices[0] + i * 2;
+        fscanf(f, "%lf %lf %d %d", ds->vertices[i], ds->vertices[i] + 1, &trashi, &trashi);
+    }
+
+    fscanf(f, "%s %d", trash, &ds->sizee);       /* number of edges */
+    ds->edges       = (int **) malloc(sizeof(int *) * ds->sizee);
+    ds->edges[0]    = (int * ) calloc(ds->sizee * 3, sizeof(int));
+    for (i = 0; i < ds->sizee; i++) {              /* edges */
+        ds->edges[i] = ds->edges[0] + i * 3;
+        fscanf(f, "%d %d %d", ds->edges[i], ds->edges[i] + 1, ds->edges[i] + 2);
+        ds->edges[i][0]--;
+        ds->edges[i][1]--;
+        ds->edges[i][2]--;
+    }
+
+    fscanf(f, "%s %d", trash, &ds->sizet);   /* number of triangles */
+    ds->triangles       = (int **) malloc(sizeof(int *) * ds->sizet);
+    ds->triangles[0]    = (int * ) calloc(ds->sizet * 3, sizeof(int));
+    for (i = 0; i < ds->sizet; i++) {         /* triangles */
+        ds->triangles[i] = ds->triangles[0] + i * 3;
+        fscanf(f, "%d %d %d %d", ds->triangles[i], ds->triangles[i] + 1, ds->triangles[i] + 2, &trashi);
+        ds->triangles[i][0]--;
+        ds->triangles[i][1]--;
+        ds->triangles[i][2]--;
+    }
+
+    fscanf(f, "%s", trash);                       /* EOF */
+}
+
+
+
+
+
+
 
