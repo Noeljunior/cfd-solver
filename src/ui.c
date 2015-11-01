@@ -29,20 +29,17 @@
 
 /*                      TODO list
 
-    * check for the list of available options
-        are they needed?
-    * check for restrictions
     * add ability to read from stdin
-    * add ability 
-    * separete the colours to the same file of INFO/WARN/ERR
 
+    * * NOT FOR NOW / NOT IMPORTANT/RELEVANT **
     *** new opts
         number of digits to residue AND/OR objective function
 
-    * * NOT FOR NOW / NOT IMPORTANT/RELEVANT **
-
 
     * * ALREADY DONE / PRETTY MUCH DONE **
+    * separete the colours to the same file of INFO/WARN/ERR
+    * check for restrictions
+    * check for the list of available options
 
 
 */

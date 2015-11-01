@@ -40,7 +40,14 @@ static char *MOD = "SLV";
 
 /*                      TODO list
 
-    * check what args should be given
+    * integra this with the meshviewer!
+
+    * * NOT FOR NOW / NOT IMPORTANT/RELEVANT **
+    + verbose to files for stats/plots
+    * configurable number of digits of printed residue/objective_value
+
+
+    * * ALREADY DONE / PRETTY MUCH DONE **
     + INFO
         INFO + WARN + ERR based on verbosity
         bold/colours CONFIGURABLE
@@ -48,14 +55,7 @@ static char *MOD = "SLV";
     +   verbosity/quiet
         quiet < normal/default < verbose
         force output the objective value
-    + verbose to files for stats/plots
-    * configurable number of digits of printed residue/objective_value
-
-
-    * * NOT FOR NOW / NOT IMPORTANT/RELEVANT **
-
-
-    * * ALREADY DONE / PRETTY MUCH DONE **
+    * check what args should be given
     * TIMER align time prints by max size of seconds (like number of iter)
     * put the INFO/WARN/ERR in a separated .h
     * add ability to count time of init functions
@@ -396,7 +396,7 @@ cfds_mesh * cfds_init(cfds_args ina, double ** vertices, int sizev, int ** edges
         inm->triangles[i].curved = NN;
     }
 
-    if (!inm->quiet) INFOMF("%d vertices, %d triangles and %d edges successfuly added.", sizev, sizet, sizee);
+    if (!inm->quiet) INFOMF("%d vertices, %d triangles and %d edges successfully added.", sizev, sizet, sizee);
     times_tick(timemes, "cfds_init()");
 
     /* compute the faces */
@@ -1537,7 +1537,7 @@ void compute_rungekutta5(mesh * inm) {
 
     int maxs = (int) log10(inm->max_iter) + 1;
 
-    if (!inm->quiet && inm->verbosity) printf("\n");
+    if (!inm->quiet && inm->showinner) printf("\n");
     running_solver = 1;
     while (residue > inm->nrt && iteration < inm->max_iter + 1 && !interrupt_solver) {
         //memcpy(uconserv_0[0], u[0], sizeof(double) * inm->novertices * NOU);
@@ -1593,7 +1593,7 @@ void compute_rungekutta5(mesh * inm) {
     print2d("phi_chapel", phi_chapel, inm->novertices, NOU, 0);
     print3d(coef, inm->novertices, NOU, inm->notc, 0);*/
 
-    if (!inm->quiet && inm->verbosity) printf("\n");
+    if (!inm->quiet && inm->showinner) printf("\n");
     if (!inm->quiet) INFOMF("Final residue: %.50e", residue);
 
     if (!(inm->quiet && !inm->fclassify)) WARNMF("Quality: [NIY-RK]");
