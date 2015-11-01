@@ -17,6 +17,8 @@
 
 #include "infocolour.h"
 
+#include "meshviewer.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <limits.h>
@@ -41,6 +43,7 @@ static char *MOD = "SLV";
 /*                      TODO list
 
     * integrate this with the meshviewer!
+    * stop signal handling after solver finish
 
     * * NOT FOR NOW / NOT IMPORTANT/RELEVANT **
     + verbose to files for stats/plots
@@ -278,6 +281,7 @@ void            compute_coefmat_pseudoinverse(mesh * inm);
 void            compute_prelimiters(mesh * inm);
 void            compute_rungekutta5(mesh * inm);
 
+
 /*
  * Solver helpers
  */
@@ -294,6 +298,12 @@ static void     compute_rk_residue(mesh * inm, double **u, double ***coef, doubl
 void            compute_momentum_vertex(double * m, double ** gp, double ** gw, int o, int nommt, int t, coord vr, coord vi, coord vf, double r);
 double *        compute_radius_spline(int N ,double *tt ,double *xx, double *yy);
 flow            compute_wall_condiction(border b, double inflow_angle, double xx, double yy, double Nxx, double Nyy);
+
+/*
+ * meshviewer integration
+ */
+void            v_draw_rawmesh(mesh * inm);
+
 
 /*
  * Time measurement
@@ -403,6 +413,11 @@ cfds_mesh * cfds_init(cfds_args * ina, double ** vertices, int sizev, int ** edg
     compute_faces(inm, edges, sizee);
     times_tick(timemes, "compute_faces()" + supress_compute);
 
+    /* VISUALIZER */
+    mv_init();
+    mv_start();
+    v_draw_rawmesh(inm);
+
     return inm;
 }
 
@@ -462,6 +477,9 @@ void cfds_solve(cfds_mesh * inm) {
         if (inm->verbosity) printf("\n");
         times_print(timemes, inm->verbosity);
     }
+
+    /* VISUALIZER */
+    mv_wait();
 }
 
 void cfds_free(cfds_mesh * inm) {
@@ -2232,6 +2250,32 @@ double * compute_radius_spline(int N ,double *tt ,double *xx, double *yy) {
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *
+ *                                             MESHVIEWER INTEGRATION
+ *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+void v_draw_rawmesh(mesh * inm) {
+    int i;
+
+    float *v = (float *) malloc(sizeof(float) * inm->novertices * 2);
+    fori (inm->novertices) {
+        v[i * 2 + 0] = inm->vertices[i].x;
+        v[i * 2 + 1] = inm->vertices[i].y;
+    }
+
+    unsigned int *id = (unsigned int *) malloc(sizeof(unsigned int) * inm->notriangles * 3);
+    fori (inm->notriangles) {
+        id[i * 3 + 0] = indexof(inm->vertices, inm->triangles[i].a);
+        id[i * 3 + 1] = indexof(inm->vertices, inm->triangles[i].b);
+        id[i * 3 + 2] = indexof(inm->vertices, inm->triangles[i].c);
+    }
+
+    mv_add(MV_2D_TRIANGLES_AS_LINES, v, inm->novertices, id, inm->notriangles * 3, mv_white, 0, NULL);
+}
+
+
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ *
  *                                             TIME MEASUREMENT
  *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
@@ -2348,6 +2392,9 @@ void sig_handler(int signo) {
      */
     //static char *FUN = "";
     if (signo == SIGINT) {
+        /* VISUALIZER */
+        mv_stop();
+
         printf("\r");
         if (!running_solver) {
             AERRM("SIGINT received. Aborting!");
@@ -2397,5 +2444,6 @@ void print3d(double ***u, int m, int l, int c, int new) {
     }
         fclose(f);
 }
+
 
 

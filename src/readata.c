@@ -23,7 +23,7 @@
 /*
  *  This file name, used in INFO/WARN/ERR msgs
  */
-static char *MOD = "RD";
+static char *MOD = "RDP";
 
 
 /*                      TODO list
