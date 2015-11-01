@@ -26,7 +26,6 @@
 
 /*                      TODO list
 
-    * var size of MOD
 
     * * NOT FOR NOW / NOT IMPORTANT/RELEVANT **
 
@@ -46,7 +45,7 @@
 /*
  *  INFO/WARN/ERR configs
  */
-
+#define    _ICCS 4 /* the size of MOD */
 
 /*
  *  COLOURS configs
@@ -61,8 +60,8 @@
 #define MSGD(colour, type, mod, fun, ...)\
                          ({ char mi = mod != NULL && mod[0] != '\0' ? 1 : 0;\
                             char fi = fun != NULL && fun[0] != '\0' ? 1 : 0;\
-                            printf(colour "%s"RESET"%s%3s%s %s%s", type,\
-                                mi ? "[" : "", mi ? mod : "", mi ? "]" : "",\
+                            printf(colour "%s"RESET"%s%*s%s %s%s", type,\
+                                mi ? "[" : "", _ICCS, mi ? mod : "", mi ? "]" : "",\
                                 fi ? fun : "", fi ? ": " : ""); \
                             printf(__VA_ARGS__); \
                             printf("\n");})

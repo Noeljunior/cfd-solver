@@ -36,6 +36,9 @@
     * add ability 
     * separete the colours to the same file of INFO/WARN/ERR
 
+    *** new opts
+        number of digits to residue AND/OR objective function
+
     * * NOT FOR NOW / NOT IMPORTANT/RELEVANT **
 
 
