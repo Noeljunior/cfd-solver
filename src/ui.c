@@ -29,7 +29,6 @@
 
 /*                      TODO list
 
-    * add ability to read from stdin
 
     * * NOT FOR NOW / NOT IMPORTANT/RELEVANT **
     *** new opts
@@ -37,6 +36,7 @@
 
 
     * * ALREADY DONE / PRETTY MUCH DONE **
+    * add ability to read from stdin
     * separete the colours to the same file of INFO/WARN/ERR
     * check for restrictions
     * check for the list of available options

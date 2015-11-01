@@ -28,12 +28,17 @@ static char *MOD = "RD";
 
 /*                      TODO list
 
-    * detect file type/version and decide
-    * option to read from stdin
+
+    * * NOT FOR NOW / NOT IMPORTANT/RELEVANT **
+
+
+    * * ALREADY DONE / PRETTY MUCH DONE **
     * a function to free this arrays
     * pointerify the struct
     * create a function to force read like specific format and source
         and a enum for type
+    * detect file type/version and decide
+    * option to read from stdin
 
 */
 
@@ -45,8 +50,6 @@ static char *MOD = "RD";
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 void        read_new(FILE * f, char * fl, cfdrd_ds * ds);
 void        read_old(FILE * f, char * fl, cfdrd_ds * ds);
-
-
 
 
 
@@ -205,10 +208,6 @@ void read_old(FILE * f, char * fl, cfdrd_ds * ds) {
 
     fscanf(f, "%s", trash);                       /* EOF */
 }
-
-
-
-
 
 
 
