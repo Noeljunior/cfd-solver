@@ -51,18 +51,14 @@ static char *MOD = "SLV";
     + verbose to files for stats/plots
     * configurable number of digits of printed residue/objective_value
 
-    * add ability to count time of init functions
-        by adding a dummy tick
-
-    * put the INFO/WARN/ERR in a separated .h
-
-    * TIMER
-        align time prints by max size of seconds (like number of iter)
 
     * * NOT FOR NOW / NOT IMPORTANT/RELEVANT **
 
 
     * * ALREADY DONE / PRETTY MUCH DONE **
+    * TIMER align time prints by max size of seconds (like number of iter)
+    * put the INFO/WARN/ERR in a separated .h
+    * add ability to count time of init functions
     * make the edge reading a like a face building
     * percorrer todas as faces fronteira de forma seemless
     * Percorrer todos os vertices fronteira de forma seemless
