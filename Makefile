@@ -1,5 +1,5 @@
 CFLAGS   = -Wall
-LIBS     = -lm -lgsl -lgslcblas
+LIBS     = -lm -lgsl -lgslcblas -lGL -lSDL2 -lGLEW -lGL -lGLU -lpthread
 OPTS     = -march=native -mtune=native -m64 -O3 -funroll-loops
 
 SRC      = src/
@@ -7,7 +7,7 @@ OBJ      = obj/
 OUT      = cfd
 
 # list of object that will be compiling with optimazion flags
-OPT_OBJS = cfdsolver.o
+OPT_OBJS = cfdsolver.o meshviewer.o
 # and the auto-list of the remaining objects
 OBJS = $(filter-out $(OPT_OBJS),$(patsubst %.c,%.o,$(subst $(SRC),,$(wildcard $(SRC)*.c))))
 
