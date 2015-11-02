@@ -39,11 +39,16 @@
  *  This file name, used in INFO/WARN/ERR msgs
  */
 static char *MOD = "SLV";
+static char *COL = BLUE;
 
 /*                      TODO list
 
     * integrate this with the meshviewer!
+        + pressures?
+    * only show the mesh if asked by user by argument
     * stop signal handling after solver finish
+
+    * REFACTOR MESHVIEWER
 
     * * NOT FOR NOW / NOT IMPORTANT/RELEVANT **
     + verbose to files for stats/plots
@@ -184,6 +189,10 @@ struct cfds_mesh {
     char            quiet;                  /* be quiet all the time */
     char            showinner;              /* if to show results each rungekutta iteration */
     char            fclassify;              /* if quiet is set, show the classification */
+    char            plotviewer;             /* if to plot the meshviewer */
+
+                                /* meshviewer */
+    int             pressure_plot;          /* the identifier of plot in meshviewer */
 };
 
 
@@ -233,7 +242,7 @@ typedef struct face {
                     *vl, *vr;               /* left and right vertices    \FACE:5:6/ */
     triangle        *tl, *tr;               /* left and right triangles   \FACE:3:4/ */
     double          curve_radius;           /* if this is curved, the curvature radius */
-    coord           middle_point;           /* the midle point used when a face is in an edge */
+    coord           middle_point;           /* the middle point used when a face is in an edge */
     border          border;                 /* in which border is this face */
 
     coord           *gauss_points;          /* gauss points of this face  \XG/ */
@@ -270,7 +279,7 @@ typedef struct ttick {
 void            compute(mesh * inm);
 void            compute_faces(mesh * inm, int ** edges, int sizee);
 void            compute_radius(mesh * inm);
-void            compute_midle_points(mesh * inm);
+void            compute_middle_points(mesh * inm);
 void            compute_legendre(mesh * inm);
 void            compute_centroids(mesh * inm);
 void            compute_momentum(mesh * inm);
@@ -303,6 +312,7 @@ flow            compute_wall_condiction(border b, double inflow_angle, double xx
  * meshviewer integration
  */
 void            v_draw_rawmesh(mesh * inm);
+void            v_draw_updatepressure(mesh * inm);
 
 
 /*
@@ -384,6 +394,8 @@ cfds_mesh * cfds_init(cfds_args * ina, double ** vertices, int sizev, int ** edg
     inm->showinner              = ina->showinner;
     inm->fclassify              = ina->fclassify;
 
+    inm->pressure_plot          = -1;
+
     /* copy vertices, edges and triangles to the internal data struct */
     int i;
     timemes = times_init(16);
@@ -414,8 +426,7 @@ cfds_mesh * cfds_init(cfds_args * ina, double ** vertices, int sizev, int ** edg
     times_tick(timemes, "compute_faces()" + supress_compute);
 
     /* VISUALIZER */
-    mv_init();
-    mv_start();
+    mv_start(2, inm->quiet ? -1 : inm->verbosity);
     v_draw_rawmesh(inm);
 
     return inm;
@@ -440,8 +451,8 @@ void cfds_solve(cfds_mesh * inm) {
     compute_radius(inm);
     times_tick(timemes, "compute_radius()" + supress_compute);
 
-    compute_midle_points(inm);
-    times_tick(timemes, "compute_midle_points()" + supress_compute);
+    compute_middle_points(inm);
+    times_tick(timemes, "compute_middle_points()" + supress_compute);
 
     compute_legendre(inm);
     times_tick(timemes, "compute_legendre()" + supress_compute);
@@ -761,11 +772,11 @@ void compute_radius(mesh * inm) {
         INFOMF("%d splines computed as well as %d radii", inm->noborders, t);
 }
 
-void compute_midle_points(mesh * inm) {
+void compute_middle_points(mesh * inm) {
     /*
      * This computes TODO
      */
-    /*const char *FUN = "compute_midle_points()" + supress_compute;*/
+    /*const char *FUN = "compute_middle_points()" + supress_compute;*/
     int i;
     /*fori (inm->noborders) {
         forj (inm->noedgeface[i]) {
@@ -1599,10 +1610,16 @@ void compute_rungekutta5(mesh * inm) {
 
         if (!inm->quiet && inm->showinner) {
             INFOMF("Residue[%*d]: %.50e", maxs, iteration, residue);
-       }
+        }
+
+
+        v_draw_updatepressure(inm);
 
         iteration++;
     }
+    running_solver = 0;
+
+
 
     /*print2d("r", r, inm->novertices, NOU, 1);
     print2d("uconserv_0", uconserv_0, inm->novertices, NOU, 0);
@@ -2269,7 +2286,116 @@ void v_draw_rawmesh(mesh * inm) {
         id[i * 3 + 2] = indexof(inm->vertices, inm->triangles[i].c);
     }
 
-    mv_add(MV_2D_TRIANGLES_AS_LINES, v, inm->novertices, id, inm->notriangles * 3, mv_white, 0, NULL);
+    //mv_add(MV_2D_TRIANGLES, v, inm->novertices, id, inm->notriangles * 3, mv_dgray, 0, NULL);
+    //mv_add(MV_2D_TRIANGLES_AS_LINES, v, inm->novertices, id, inm->notriangles * 3, mv_white, 1.0, 1, NULL);
+    free(v);
+    free(id);
+
+
+    //v  = (float *) malloc(sizeof(float) * inm->noedgeface[i] * 2);
+    /*id = (unsigned int *) malloc(sizeof(unsigned int) * inm->noedgeface[0] * 2);
+    fori (inm->noedgeface[0]) {
+        id[i * 2 + 0] = indexof(inm->vertices, inm->edgeface[0][i].vi);
+        id[i * 2 + 1] = indexof(inm->vertices, inm->edgeface[0][i].vf);
+    }
+
+    mv_add(MV_2D_LINES, v, inm->novertices, id, inm->noedgeface[0] * 2, mv_red, 2.0f, NULL);*/
+}
+double interpolate( double val, double y0, double x0, double y1, double x1 ) {
+    return (val-x0)*(y1-y0)/(x1-x0) + y0;
+}
+
+double base( double val ) {
+    if ( val <= -0.75 ) return 0;
+    else if ( val <= -0.25 ) return interpolate( val, 0.0, -0.75, 1.0, -0.25 );
+    else if ( val <= 0.25 ) return 1.0;
+    else if ( val <= 0.75 ) return interpolate( val, 1.0, 0.25, 0.0, 0.75 );
+    else return 0.0;
+}
+
+double red( double gray ) {
+    return base( gray - 0.5 );
+}
+double green( double gray ) {
+    return base( gray );
+}
+double blue( double gray ) {
+    return base( gray + 0.5 );
+}
+
+
+
+typedef struct { double r,g,b; } COLOUR;
+COLOUR getcolour(double v, double vmin, double vmax) {
+   COLOUR c = {1.0,1.0,1.0}; // white
+
+   if (v < vmin) v = vmin;
+   if (v > vmax) v = vmax;
+   double       dv = vmax - vmin;
+
+   if (v < (vmin + 0.25 * dv)) {
+      c.r = 0;
+      c.g = 4 * (v - vmin) / dv;
+   } else if (v < (vmin + 0.5 * dv)) {
+      c.r = 0;
+      c.b = 1 + 4 * (vmin + 0.25 * dv - v) / dv;
+   } else if (v < (vmin + 0.75 * dv)) {
+      c.r = 4 * (v - vmin - 0.5 * dv) / dv;
+      c.b = 0;
+   } else {
+      c.g = 1 + 4 * (vmin + 0.75 * dv - v) / dv;
+      c.b = 0;
+   }
+
+   return(c);
+}
+
+void v_draw_updatepressure(mesh * inm) {
+    #define max(a, b) ((a) > (b) ? (a) : (b))
+    #define min(a, b) ((a) < (b) ? (a) : (b))
+    int i;
+    double max = DBL_MIN, min = DBL_MAX;
+    fori (inm->novertices) {
+        max = max(inm->u[i][0], max);
+        min = min(inm->u[i][0], min);
+    }
+
+    //printf("\n\nmax: %e\nmin: %e\n", max, min);
+
+
+    float *v = (float *) malloc(sizeof(float) * inm->novertices * 2);
+    float *c = (float *) malloc(sizeof(float) * inm->novertices * 3);
+    fori (inm->novertices) {
+        v[i * 2 + 0] = inm->vertices[i].x;
+        v[i * 2 + 1] = inm->vertices[i].y;
+
+
+        double val = (inm->u[i][0] - min) / (max - min);
+        val = 3 *log(1 + val);
+
+        COLOUR cc = getcolour(val, 3 *log(1 + 0), 3 *log(1 + 1));
+        c[i * 3 + 0] = cc.r;
+        c[i * 3 + 1] = cc.g;
+        c[i * 3 + 2] = cc.b;
+
+    }
+
+    unsigned int *id = (unsigned int *) malloc(sizeof(unsigned int) * inm->notriangles * 3);
+    fori (inm->notriangles) {
+        id[i * 3 + 0] = indexof(inm->vertices, inm->triangles[i].a);
+        id[i * 3 + 1] = indexof(inm->vertices, inm->triangles[i].b);
+        id[i * 3 + 2] = indexof(inm->vertices, inm->triangles[i].c);
+    }
+
+    int n;
+    mv_add(MV_2D_TRIANGLES | MV_USE_COLOUR_ARRAY, v, inm->novertices, id, inm->notriangles * 3, c, 1.0, 0, &n);
+    if (inm->pressure_plot >= 0)
+        mv_destroy(inm->pressure_plot);
+    inm->pressure_plot = n;
+
+    free(v);
+    free(c);
+    free(id);
 }
 
 
@@ -2388,7 +2514,7 @@ void times_print(times * t, int verbose) {
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 void sig_handler(int signo) {
     /*
-     * This handle signalss
+     * This handle signals
      */
     //static char *FUN = "";
     if (signo == SIGINT) {
@@ -2444,6 +2570,7 @@ void print3d(double ***u, int m, int l, int c, int new) {
     }
         fclose(f);
 }
+
 
 
 

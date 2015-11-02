@@ -24,6 +24,7 @@
  *  This file name, used in INFO/WARN/ERR msgs
  */
 static char *MOD = "RDP";
+static char *COL = CYAN;
 
 
 /*                      TODO list
@@ -100,7 +101,8 @@ cfdrd_ds * cfdrd_readfile_auto(char *path, int rstdin, int force, int bequiet) {
         if      (new == 1) read_new(f, fl, ds);
         else if (old == 1) read_old(f, fl, ds);
 
-        INFOMF("Input file was detected as %s file format", new ? "new" : "old");
+        if (!bequiet)
+            INFOMF("Input file was detected as %s file format", new ? "new" : "old");
     }
     free(fl);
 
