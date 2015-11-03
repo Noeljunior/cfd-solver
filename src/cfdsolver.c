@@ -192,6 +192,7 @@ struct cfds_mesh {
     char            plotviewer;             /* if to plot the meshviewer */
 
                                 /* meshviewer */
+    int             mesh_plot;              /* the identifier of plot in meshviewer */
     int             pressure_plot;          /* the identifier of plot in meshviewer */
     int             pressure_plotlog;       /* the identifier of plot in meshviewer (log scale) */
     int             velocity_plot;          /* the identifier of the velocity plot in meshviewer */
@@ -314,8 +315,7 @@ flow            compute_wall_condiction(border b, double inflow_angle, double xx
  * meshviewer integration
  */
 void            v_draw_rawmesh(mesh * inm);
-void            v_draw_updatepressure(mesh * inm, int uselog);
-void            v_draw_velocities(mesh * inm);
+void            v_draw_coefs(mesh * inm, int uselog);
 
 
 /*
@@ -372,7 +372,7 @@ cfds_mesh * cfds_init(cfds_args * ina, double ** vertices, int sizev, int ** edg
 
     inm->gamma                  = 1.4;
     inm->r                      = 287.05;
-    inm->inflow_angle           = 1.25 * PI / 180.0;
+    inm->inflow_angle           = 15.25 * PI / 180.0;
 /*    inm->inflow_angle           = 1.25 * PI / 180.0;*/
     inm->mach_inflow            = 0.8;
     inm->t_inflow               = 233.0;
@@ -398,6 +398,7 @@ cfds_mesh * cfds_init(cfds_args * ina, double ** vertices, int sizev, int ** edg
     inm->showinner              = ina->showinner;
     inm->fclassify              = ina->fclassify;
 
+    inm->mesh_plot              = -1;
     inm->pressure_plot          = -1;
     inm->pressure_plotlog       = -1;
     inm->velocity_plot          = -1;
@@ -1619,9 +1620,7 @@ void compute_rungekutta5(mesh * inm) {
         }
 
 
-        v_draw_updatepressure(inm, 0);
-        //v_draw_updatepressure(inm, 1);
-        v_draw_velocities(inm);
+        v_draw_coefs(inm, 0);
 
         iteration++;
 
@@ -2285,6 +2284,9 @@ double * compute_radius_spline(int N ,double *tt ,double *xx, double *yy) {
 void v_draw_rawmesh(mesh * inm) {
     int i;
 
+    if (inm->mesh_plot >= 0)
+        return;
+
     float *v = (float *) malloc(sizeof(float) * inm->novertices * 2);
     fori (inm->novertices) {
         v[i * 2 + 0] = inm->vertices[i].x;
@@ -2303,10 +2305,10 @@ void v_draw_rawmesh(mesh * inm) {
     int n;
     mv_add(MV_2D_TRIANGLES_AS_LINES, v, inm->novertices, id, inm->notriangles * 3, mv_white, 1.0, 1, &n);
     mv_setrotate(n, -inm->inflow_angle * 180.0 / PI);
-    mv_hide(n);
+    inm->mesh_plot = n;
+
     free(v);
     free(id);
-
 
     //v  = (float *) malloc(sizeof(float) * inm->noedgeface[i] * 2);
     /*id = (unsigned int *) malloc(sizeof(unsigned int) * inm->noedgeface[0] * 2);
@@ -2317,95 +2319,45 @@ void v_draw_rawmesh(mesh * inm) {
 
     mv_add(MV_2D_LINES, v, inm->novertices, id, inm->noedgeface[0] * 2, mv_red, 2.0f, NULL);*/
 }
-/*typedef struct { double r,g,b; } COLOUR;
-static COLOUR getcolour(double v, double vmin, double vmax) {
-   COLOUR c = {1.0,1.0,1.0}; // white
 
-   if (v < vmin) v = vmin;
-   if (v > vmax) v = vmax;
-   double       dv = vmax - vmin;
-
-   if (v < (vmin + 0.25 * dv)) {
-      c.r = 0;
-      c.g = 4 * (v - vmin) / dv;
-   } else if (v < (vmin + 0.5 * dv)) {
-      c.r = 0;
-      c.b = 1 + 4 * (vmin + 0.25 * dv - v) / dv;
-   } else if (v < (vmin + 0.75 * dv)) {
-      c.r = 4 * (v - vmin - 0.5 * dv) / dv;
-      c.b = 0;
-   } else {
-      c.g = 1 + 4 * (vmin + 0.75 * dv - v) / dv;
-      c.b = 0;
-   }
-
-   return(c);
-}*/
 
 double tripol(double scale, double tri[][2]) {
     /* clipping */
     if (scale < 0.0) scale = 0.0;
     if (scale > 1.0) scale = 1.0;
 
-    if (scale < tri[1][0]) {
+    if (scale < tri[1][0])
         return ((tri[1][1] - tri[0][1]) / (tri[1][0] - tri[0][0])) * (scale - tri[0][0]) + tri[0][1];
-    }
-    else if (scale >= tri[1][0] && scale <= tri[2][0]) {
-        return tri[1][1];
-    }
-    else /* (scale > tri[2][0]) */{
+    else if (scale >= tri[1][0] && scale <= tri[2][0]) return tri[1][1];
+    else /* (scale > tri[2][0]) */
         return ((tri[3][1] - tri[2][1]) / (tri[3][0] - tri[2][0])) * (scale - tri[2][0]) + tri[2][1];
-    }
 }
 
 double transpol(double val, double m1, double m2, double min, double max) {
-    //m2 = min + m2 * (max - min);
-    double d1m1 = m1  - min,
-           d2m1 = max - m1,
-           d1m2 = m2  - min,
-           d2m2 = max - m2;
-    if (val < m1)
-        return d1m2 / d1m1 * val;
-    else
-        return d2m2 / d2m1 * (val-m1) + m2;
+    double d1m1 = m1  - min, d2m1 = max - m1, d1m2 = m2  - min, d2m2 = max - m2;
+    if (val < m1) return d1m2 / d1m1 * val;
+    else          return d2m2 / d2m1 * (val-m1) + m2;
 }
 
-
-double jetr[4][2] = { 0.475,  0.0,
-                      0.625, 1.0,
-                      0.875, 1.0,
-                      1.0,   0.6 };
-double jetg[4][2] = { 0.1,   0.0,
-                      0.375, 1.0,
-                      0.625, 1.0,
-                      0.875, 0.0 };
-double jetb[4][2] = { 0.0,   0.6,
-                      0.1,   1.0,
-                      0.35,  1.0,
-                      0.525,  0.0 };
+/* A bit more contrast */
+double jetr[4][2] = { {0.475, 0.0}, {0.625, 1.0}, {0.875, 1.0}, {1.0,   0.6} };
+double jetg[4][2] = { {0.1,   0.0}, {0.375, 1.0}, {0.625, 1.0}, {0.875, 0.0} };
+double jetb[4][2] = { {0.0,   0.6}, {0.1,   1.0}, {0.35,  1.0}, {0.525, 0.0} };
 
 /* MATLAB JET */
-/*double jetr[4][2] = { 0.375, 0.0,
-                      0.625, 1.0,
-                      0.875, 1.0,
-                      1.0,   0.6 };
-double jetg[4][2] = { 0.1,   0.0,
-                      0.375, 1.0,
-                      0.625, 1.0,
-                      0.875, 0.0 };
-double jetb[4][2] = { 0.0,   0.6,
-                      0.1,   1.0,
-                      0.35,  1.0,
-                      0.625, 0.0 };*/
+/*double jetr[4][2] = { {0.375, 0.0}, {0.625, 1.0}, {0.875, 1.0}, {1.0,   0.6} };
+double jetg[4][2] = { {0.1,   0.0}, {0.375, 1.0}, {0.625, 1.0}, {0.875, 0.0} };
+double jetb[4][2] = { {0.0,   0.6}, {0.1,   1.0}, {0.35,  1.0}, {0.625, 0.0} };*/
 
 
-void v_draw_updatepressure(mesh * inm, int uselog) {
+void v_draw_coefs(mesh * inm, int uselog) {
     #define max(a, b) ((a) > (b) ? (a) : (b))
     #define min(a, b) ((a) < (b) ? (a) : (b))
 
     int i;
     int id = 3; /* what to draw: 3 Cp, 0: Cm */
     double max = DBL_MIN, min = DBL_MAX, zero = 0.6;
+    double dim = 1.0;
 
     fori (inm->novertices) {
         max = max(inm->u[i][id], max);
@@ -2413,8 +2365,8 @@ void v_draw_updatepressure(mesh * inm, int uselog) {
         if (inm->vertices +i == inm->edgeface[1][inm->noedgeface[1] / 4].vi)
             zero = inm->u[i][id];
     }
-    float *c = (float *) malloc(sizeof(float) * inm->novertices * 3);
 
+    float *c = (float *) malloc(sizeof(float) * inm->novertices * 3);
     fori (inm->novertices) {
         double val = inm->u[i][id];
         val = (val - min) / (max - min);
@@ -2424,9 +2376,9 @@ void v_draw_updatepressure(mesh * inm, int uselog) {
         if (uselog)
             val = log(1 + val) / log(2);
 
-        c[i * 3 + 0] = tripol(val, jetr);
-        c[i * 3 + 1] = tripol(val, jetg);
-        c[i * 3 + 2] = tripol(val, jetb);
+        c[i * 3 + 0] = tripol(val, jetr) * dim;
+        c[i * 3 + 1] = tripol(val, jetg) * dim;
+        c[i * 3 + 2] = tripol(val, jetb) * dim;
     }
 
 
@@ -2456,8 +2408,10 @@ void v_draw_updatepressure(mesh * inm, int uselog) {
         else
             inm->pressure_plot = n;
 
+        if (inm->mesh_plot >= 0)
+            mv_hide(inm->mesh_plot);
+
         free(v);
-        free(c);
         free(id);
     } else {
 
@@ -2469,21 +2423,30 @@ void v_draw_updatepressure(mesh * inm, int uselog) {
         else
             mv_updatecolourarray(inm->pressure_plot, c, inm->novertices);
 
-        free(c);
     }
-}
 
-void v_draw_velocities(mesh * inm) {
-    int i;
-    double factor = 0.0001;
-
+    /* VELOCITY */
+    double factor = 0.0002;
     float *v = (float *) malloc(sizeof(float) * inm->novertices * 2 * 2);
+    float *cv = (float *) malloc(sizeof(float) * inm->novertices * 3 * 2);
     fori (inm->novertices) {
         v[i * 4 + 0] = inm->vertices[i].x;
         v[i * 4 + 1] = inm->vertices[i].y;
 
         v[i * 4 + 2] = inm->vertices[i].x + inm->u[i][1] * factor;
         v[i * 4 + 3] = inm->vertices[i].y + inm->u[i][2] * factor;
+
+
+        double r = c[i * 3 + 0];
+        double g = c[i * 3 + 1];
+        double b = c[i * 3 + 2];
+
+        /*cv[i * 6 + 3] = cv[i * 6 + 0] = ((r + g + b) / 3.0) > 0.5 ? 0 : 1;
+        cv[i * 6 + 4] = cv[i * 6 + 1] = ((r + g + b) / 3.0) > 0.5 ? 0 : 1;
+        cv[i * 6 + 5] = cv[i * 6 + 2] = ((r + g + b) / 3.0) > 0.5 ? 0 : 1;*/
+        cv[i * 6 + 3] = cv[i * 6 + 0] = 1 - r;
+        cv[i * 6 + 4] = cv[i * 6 + 1] = 1 - g;
+        cv[i * 6 + 5] = cv[i * 6 + 2] = 1 - b;
     }
 
     if (inm->velocity_plot < 0) {
@@ -2493,7 +2456,7 @@ void v_draw_velocities(mesh * inm) {
         }
 
         int n;
-        mv_add(MV_2D_LINES, v, inm->novertices * 2, id, inm->novertices * 2, mv_pink, 2.0, 2, &n);
+        mv_add(MV_2D_LINES | MV_USE_COLOUR_ARRAY, v, inm->novertices * 2, id, inm->novertices * 2, cv/*mv_pink*/, 1.0, 2, &n);
         mv_setrotate(n, -inm->inflow_angle * 180.0 / PI);
         inm->velocity_plot = n;
 
@@ -2501,10 +2464,14 @@ void v_draw_velocities(mesh * inm) {
     }
     else {
         mv_updatevertexarray(inm->velocity_plot, v, inm->novertices * 2);
+        mv_updatecolourarray(inm->velocity_plot, cv, inm->novertices * 2);
     }
 
     free(v);
+    free(c);
+    free(cv);
 }
+
 
 
 
