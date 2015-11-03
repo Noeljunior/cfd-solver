@@ -53,7 +53,7 @@ static char *COL = BLUE;
     * * NOT FOR NOW / NOT IMPORTANT/RELEVANT **
     + verbose to files for stats/plots
     * configurable number of digits of printed residue/objective_value
-
+    * option mesh draw
 
     * * ALREADY DONE / PRETTY MUCH DONE **
     + INFO
@@ -369,7 +369,8 @@ cfds_mesh * cfds_init(cfds_args * ina, double ** vertices, int sizev, int ** edg
 
     inm->gamma                  = 1.4;
     inm->r                      = 287.05;
-    inm->inflow_angle           = 1.25 * PI / 180.0;
+    inm->inflow_angle           = 20.0 * PI / 180.0;
+/*    inm->inflow_angle           = 1.25 * PI / 180.0;*/
     inm->mach_inflow            = 0.8;
     inm->t_inflow               = 233.0;
     inm->u_inflow[3]            = 25000.0;
@@ -427,7 +428,7 @@ cfds_mesh * cfds_init(cfds_args * ina, double ** vertices, int sizev, int ** edg
 
     /* VISUALIZER */
     mv_start(2, inm->quiet ? -1 : inm->verbosity);
-    v_draw_rawmesh(inm);
+    //v_draw_rawmesh(inm);
 
     return inm;
 }
@@ -2287,7 +2288,10 @@ void v_draw_rawmesh(mesh * inm) {
     }
 
     //mv_add(MV_2D_TRIANGLES, v, inm->novertices, id, inm->notriangles * 3, mv_dgray, 0, NULL);
-    //mv_add(MV_2D_TRIANGLES_AS_LINES, v, inm->novertices, id, inm->notriangles * 3, mv_white, 1.0, 1, NULL);
+
+    int n;
+    mv_add(MV_2D_TRIANGLES_AS_LINES, v, inm->novertices, id, inm->notriangles * 3, mv_white, 1.0, 1, &n);
+    mv_setrotate(n, -inm->inflow_angle * 180.0 / PI);
     free(v);
     free(id);
 
@@ -2301,32 +2305,8 @@ void v_draw_rawmesh(mesh * inm) {
 
     mv_add(MV_2D_LINES, v, inm->novertices, id, inm->noedgeface[0] * 2, mv_red, 2.0f, NULL);*/
 }
-double interpolate( double val, double y0, double x0, double y1, double x1 ) {
-    return (val-x0)*(y1-y0)/(x1-x0) + y0;
-}
-
-double base( double val ) {
-    if ( val <= -0.75 ) return 0;
-    else if ( val <= -0.25 ) return interpolate( val, 0.0, -0.75, 1.0, -0.25 );
-    else if ( val <= 0.25 ) return 1.0;
-    else if ( val <= 0.75 ) return interpolate( val, 1.0, 0.25, 0.0, 0.75 );
-    else return 0.0;
-}
-
-double red( double gray ) {
-    return base( gray - 0.5 );
-}
-double green( double gray ) {
-    return base( gray );
-}
-double blue( double gray ) {
-    return base( gray + 0.5 );
-}
-
-
-
 typedef struct { double r,g,b; } COLOUR;
-COLOUR getcolour(double v, double vmin, double vmax) {
+static COLOUR getcolour(double v, double vmin, double vmax) {
    COLOUR c = {1.0,1.0,1.0}; // white
 
    if (v < vmin) v = vmin;
@@ -2353,6 +2333,7 @@ COLOUR getcolour(double v, double vmin, double vmax) {
 void v_draw_updatepressure(mesh * inm) {
     #define max(a, b) ((a) > (b) ? (a) : (b))
     #define min(a, b) ((a) < (b) ? (a) : (b))
+
     int i;
     double max = DBL_MIN, min = DBL_MAX;
     fori (inm->novertices) {
@@ -2360,42 +2341,56 @@ void v_draw_updatepressure(mesh * inm) {
         min = min(inm->u[i][0], min);
     }
 
-    //printf("\n\nmax: %e\nmin: %e\n", max, min);
+
+    if (inm->pressure_plot < 0) {
+        float *v = (float *) malloc(sizeof(float) * inm->novertices * 2);
+        float *c = (float *) malloc(sizeof(float) * inm->novertices * 3);
+        fori (inm->novertices) {
+            v[i * 2 + 0] = inm->vertices[i].x;
+            v[i * 2 + 1] = inm->vertices[i].y;
 
 
-    float *v = (float *) malloc(sizeof(float) * inm->novertices * 2);
-    float *c = (float *) malloc(sizeof(float) * inm->novertices * 3);
-    fori (inm->novertices) {
-        v[i * 2 + 0] = inm->vertices[i].x;
-        v[i * 2 + 1] = inm->vertices[i].y;
+            double val = (inm->u[i][0] - min) / (max - min);
+            val = 3 *log(1 + val);
+
+            COLOUR cc = getcolour(val, 3 *log(1 + 0), 3 *log(1 + 1));
+            c[i * 3 + 0] = cc.r;
+            c[i * 3 + 1] = cc.g;
+            c[i * 3 + 2] = cc.b;
+
+        }
+
+        unsigned int *id = (unsigned int *) malloc(sizeof(unsigned int) * inm->notriangles * 3);
+        fori (inm->notriangles) {
+            id[i * 3 + 0] = indexof(inm->vertices, inm->triangles[i].a);
+            id[i * 3 + 1] = indexof(inm->vertices, inm->triangles[i].b);
+            id[i * 3 + 2] = indexof(inm->vertices, inm->triangles[i].c);
+        }
+
+        int n;
+        mv_add(MV_2D_TRIANGLES | MV_USE_COLOUR_ARRAY, v, inm->novertices, id, inm->notriangles * 3, c, 1.0, 0, &n);
+        mv_setrotate(n, -inm->inflow_angle * 180.0 / PI);
+        inm->pressure_plot = n;
 
 
-        double val = (inm->u[i][0] - min) / (max - min);
-        val = 3 *log(1 + val);
+        free(v);
+        free(c);
+        free(id);
+    } else {
+        float *c = (float *) malloc(sizeof(float) * inm->novertices * 3);
+        fori (inm->novertices) {
+            double val = (inm->u[i][0] - min) / (max - min);
+            val = 3 *log(1 + val);
 
-        COLOUR cc = getcolour(val, 3 *log(1 + 0), 3 *log(1 + 1));
-        c[i * 3 + 0] = cc.r;
-        c[i * 3 + 1] = cc.g;
-        c[i * 3 + 2] = cc.b;
+            COLOUR cc = getcolour(val, 3 *log(1 + 0), 3 *log(1 + 1));
+            c[i * 3 + 0] = cc.r;
+            c[i * 3 + 1] = cc.g;
+            c[i * 3 + 2] = cc.b;
+        }
 
+        mv_updatecolourarray(inm->pressure_plot, c, inm->novertices);
+        free(c);
     }
-
-    unsigned int *id = (unsigned int *) malloc(sizeof(unsigned int) * inm->notriangles * 3);
-    fori (inm->notriangles) {
-        id[i * 3 + 0] = indexof(inm->vertices, inm->triangles[i].a);
-        id[i * 3 + 1] = indexof(inm->vertices, inm->triangles[i].b);
-        id[i * 3 + 2] = indexof(inm->vertices, inm->triangles[i].c);
-    }
-
-    int n;
-    mv_add(MV_2D_TRIANGLES | MV_USE_COLOUR_ARRAY, v, inm->novertices, id, inm->notriangles * 3, c, 1.0, 0, &n);
-    if (inm->pressure_plot >= 0)
-        mv_destroy(inm->pressure_plot);
-    inm->pressure_plot = n;
-
-    free(v);
-    free(c);
-    free(id);
 }
 
 
@@ -2518,12 +2513,13 @@ void sig_handler(int signo) {
      */
     //static char *FUN = "";
     if (signo == SIGINT) {
+        printf("\r");
+        fprintf(stderr, "\r");
         /* VISUALIZER */
         mv_stop();
 
-        printf("\r");
         if (!running_solver) {
-            AERRM("SIGINT received. Aborting!");
+            ERRM("SIGINT received. Aborting!");
             exit(0);
         }
 
