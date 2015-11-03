@@ -16,7 +16,7 @@ $(OUT): $(addprefix ${OBJ},$(OBJS)) $(addprefix ${OBJ},$(OPT_OBJS))
 	gcc $(LIBS) ${OBJ}*.o -o $@
 
 
-$(OPT_OBJS): OPT_OBJS_FLAGS := $(OPTS)
+$(addprefix ${OBJ},$(OPT_OBJS)): OPT_OBJS_FLAGS := $(OPTS)
 ${OBJ}%.o: $(SRC)%.c
 	@mkdir -p ${OBJ}
 	gcc $(CFLAGS) $(OPT_OBJS_FLAGS) -o $@ -c $<
