@@ -252,20 +252,30 @@ static int validate_args(ui_args * args) {
         default:
             printf(WARNT"WARN"RESET": test suit not recognized -- %d. Using the first one\n", args->testp);
         case 1: /* so as Juan Casavilca has on his first example */
-            args->angle           = 1.25;
-            args->mach            = 0.8;
-            args->order           = 2;
-            args->cfl             = 3.5;
-            args->max_iterations  = 100000;
-            args->nr_threashold   = 1e-06;
+            if (!(args->mandatory & (1 << 0))) args->angle           = 1.25;
+            if (!(args->mandatory & (1 << 1))) args->mach            = 0.8;
+            if (!(args->mandatory & (1 << 2))) args->order           = 2;
+            if (!(args->mandatory & (1 << 3))) args->cfl             = 3.5;
+            if (!(args->mandatory & (1 << 4))) args->max_iterations  = 100000;
+            if (!(args->mandatory & (1 << 5))) args->nr_threashold   = 1e-10;
             break;
-        case 2: /* so as Juan Casavilca has on his first example */
-            args->angle           = 3.00;
-            args->mach            = 0.8;
-            args->order           = 2;
-            args->cfl             = 2.5;
-            args->max_iterations  = 100000;
-            args->nr_threashold   = 1e-6;
+        case 2: /* Another example */
+            if (!(args->mandatory & (1 << 0))) args->angle           = 3.00;
+            if (!(args->mandatory & (1 << 1))) args->mach            = 0.8;
+            if (!(args->mandatory & (1 << 2))) args->order           = 2;
+            if (!(args->mandatory & (1 << 3))) args->cfl             = 2.5;
+            if (!(args->mandatory & (1 << 4))) args->max_iterations  = 100000;
+            if (!(args->mandatory & (1 << 5))) args->nr_threashold   = 1e-6;
+            break;
+
+
+        case 666: /* try it yourself ;) */
+            if (!(args->mandatory & (1 << 0))) args->angle           = 45.00;
+            if (!(args->mandatory & (1 << 1))) args->mach            = 0.8;
+            if (!(args->mandatory & (1 << 2))) args->order           = 2;
+            if (!(args->mandatory & (1 << 3))) args->cfl             = 3.0;
+            if (!(args->mandatory & (1 << 4))) args->max_iterations  = 100000;
+            if (!(args->mandatory & (1 << 5))) args->nr_threashold   = 1e-6;
             break;
     }
 
@@ -306,11 +316,11 @@ void static print_args(ui_args * args, struct argp argp) {
 
     printf(BOLD"Starting the solver with:"RESET"\n\
     Angle of atack    : %.3f\n\
-    Mach speed        : %f\n\
+    Mach speed        : %.3f\n\
     Order             : %d\n\
-    CFL               : %e\n\
+    CFL               : %.3f\n\
     Max interations   : %d\n\
-    Residual threshold: %e\n",
+    Residual threshold: %.3e\n",
     args->angle, args->mach, args->order, args->cfl, args->max_iterations, args->nr_threashold);
 
     char tempd[128], tempg[128], tmp[64];

@@ -385,6 +385,10 @@ cfds_mesh * cfds_init(cfds_args * ina, double ** vertices, int sizev, int ** edg
      */
     static char *FUN = "init()";
 
+    /* check for input bounderies */
+    
+
+
     /* new mesh data struct */
     mesh * inm = (mesh *) calloc(1, sizeof(mesh));
 
@@ -1648,8 +1652,7 @@ void compute_rungekutta5(mesh * inm) {
         iteration++;
     }
     running_solver = 0;
-
-
+    iteration--;
 
     /*print2d("r", r, inm->novertices, NOU, 1);
     print2d("uconserv_0", uconserv_0, inm->novertices, NOU, 0);
@@ -1659,7 +1662,6 @@ void compute_rungekutta5(mesh * inm) {
     print3d(coef, inm->novertices, NOU, inm->notc, 0);*/
 
 
-    //0if (!inm->quiet && inm->showinner) printf("\n");
     if (!inm->quiet || inm->fclassify) {
         if (residue <= inm->nrt && iteration >= inm->max_iter + 1) {
             INFOMF("Finished after reaching the maximum iterations and reaching the residue threshold");
