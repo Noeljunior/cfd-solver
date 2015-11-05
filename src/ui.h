@@ -32,11 +32,15 @@ typedef struct ui_args {
     char    *log_file;*/
     char    verbose;            /* if to show something more */
     char    quiet;              /* show nothing */
-    char    showinner;          /* if to show detailed results in each rungekutta iterations */
+    int     showdetails;        /* if to show detailed results in each <showdetails> rungekutta iteration */
+    int     showgraphics;       /* if to show graphics and update them in each <showgraphics> rungekutta iteration */
     char    fclassify;          /* if quiet is set and this is set to, then it outputs only the classification */
     char    rstdin;             /* read from stdin and not from a file */
     char    mftype;             /* mesh-file type; 0: is auto; 1: force new; 2: force legacy */
 
+
+    double  angle;              /* Angle of atack in degrees*/
+    double  mach;               /* Mach speed */
     int     order;              /* reconstruction order */
     double  cfl;                /* CFL condiction */
     int     max_iterations;     /* max iterations */

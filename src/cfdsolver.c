@@ -42,6 +42,26 @@ static char *MOD = "SLV";
 static char *COL = BLUE;
 
 /*                      TODO list
+    * inflow angle and mach_inflow as input args
+    * -d[detailed output of simulation] parameter: ability to chose the frequency of output
+    * -g[raphics]   show meshviewer at a given frequency
+
+
+
+    * receive the parametric naca function and cl and cd references
+
+
+    * IMPLEMENT the stencil!
+
+    * Print drag and lift coeficients
+
+
+    * solver function RETURNS SOME CLASSIFICATION
+
+    * ability to save stats to a file!
+        * choose what to output
+
+    * build a output visualizer
 
     * integrate this with the meshviewer!
         + pressures?
@@ -50,12 +70,17 @@ static char *COL = BLUE;
 
     * REFACTOR MESHVIEWER
 
+
+
     * * NOT FOR NOW / NOT IMPORTANT/RELEVANT **
     + verbose to files for stats/plots
     * configurable number of digits of printed residue/objective_value
     * option mesh draw
 
+
+
     * * ALREADY DONE / PRETTY MUCH DONE **
+    * fix mutexes deadlock
     + INFO
         INFO + WARN + ERR based on verbosity
         bold/colours CONFIGURABLE
@@ -106,8 +131,11 @@ static char *COL = BLUE;
 
 #define indexof(a, i)   ((int) ((i) - (a)))
 
-#define PI 3.14159265358979323846
+#define PI              3.14159265358979323846
 
+/* how many decimal cases to print */
+#define ITRESSIZE       5
+#define FRESSIZE        15
 
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -163,8 +191,8 @@ struct cfds_mesh {
                     pt_inflow,              /* total pressure */
                     q_inflow,               /* |velocity| */
                     chord,                  /* airfoil chord */
-                    lc_ref,                 /* lift coeficient */
-                    dc_ref,                 /* drag coeficient */
+                    cl_ref,                 /* reference lift coeficient */
+                    cd_ref,                 /* reference drag coeficient */
                     k_delta;                /* Limiters auxiliary constant */
     int             Aexp;                   /* Exponent of the weights of A matrix \POT/ */
     double          M1, M2;                 /* Mach numbers @ limiters */
@@ -187,7 +215,8 @@ struct cfds_mesh {
                                 /* settings */
     char            verbosity;              /* verbosity; 0: norma; 1: more verbose */
     char            quiet;                  /* be quiet all the time */
-    char            showinner;              /* if to show results each rungekutta iteration */
+    int             showdetails;            /* if to show results each <showdetails> rungekutta iteration */
+    int             showgraphics;           /* if to show graphics each <showgraphics> rungekutta iteration */
     char            fclassify;              /* if quiet is set, show the classification */
     char            plotviewer;             /* if to plot the meshviewer */
 
@@ -364,6 +393,8 @@ cfds_mesh * cfds_init(cfds_args * ina, double ** vertices, int sizev, int ** edg
     inm->cfl                    = ina->cfl;
     inm->max_iter               = ina->max_iterations;
     inm->nrt                    = ina->nr_threashold;
+    inm->inflow_angle           = ina->angle * PI / 180.0;
+    inm->mach_inflow            = ina->mach;
 
     /* compute the values and set the constants */
     inm->nommt                  = (int) (ceil((inm->order + 1.0) / 2.0));
@@ -372,9 +403,6 @@ cfds_mesh * cfds_init(cfds_args * ina, double ** vertices, int sizev, int ** edg
 
     inm->gamma                  = 1.4;
     inm->r                      = 287.05;
-    inm->inflow_angle           = 15.25 * PI / 180.0;
-/*    inm->inflow_angle           = 1.25 * PI / 180.0;*/
-    inm->mach_inflow            = 0.8;
     inm->t_inflow               = 233.0;
     inm->u_inflow[3]            = 25000.0;
     inm->tt_inflow              = inm->t_inflow * (1.0 + (inm->gamma - 1.0) / 2.0 * inm->mach_inflow * inm->mach_inflow);
@@ -384,8 +412,8 @@ cfds_mesh * cfds_init(cfds_args * ina, double ** vertices, int sizev, int ** edg
     inm->u_inflow[1]            = inm->q_inflow * cos(inm->inflow_angle);
     inm->u_inflow[2]            = inm->q_inflow * sin(inm->inflow_angle);
     inm->chord                  = 1.0;
-    inm->lc_ref                 = 0.35169;
-    inm->dc_ref                 = 0.022628;
+    inm->cl_ref                 = 0.35169;
+    inm->cd_ref                 = 0.022628;
     inm->k_delta                = 0.25;
 
     inm->Aexp                   = 1;
@@ -395,9 +423,11 @@ cfds_mesh * cfds_init(cfds_args * ina, double ** vertices, int sizev, int ** edg
     /* copy settings */
     inm->verbosity              = ina->verbose;
     inm->quiet                  = ina->quiet;
-    inm->showinner              = ina->showinner;
+    inm->showdetails            = ina->showdetails;
+    inm->showgraphics           = ina->showgraphics;
     inm->fclassify              = ina->fclassify;
 
+    /* initialize plot identifiers */
     inm->mesh_plot              = -1;
     inm->pressure_plot          = -1;
     inm->pressure_plotlog       = -1;
@@ -433,8 +463,10 @@ cfds_mesh * cfds_init(cfds_args * ina, double ** vertices, int sizev, int ** edg
     times_tick(timemes, "compute_faces()" + supress_compute);
 
     /* VISUALIZER */
-    mv_start(3, inm->quiet ? -1 : inm->verbosity);
-    v_draw_rawmesh(inm);
+    if (inm->showgraphics) {
+        mv_start(3, inm->quiet ? -1 : inm->verbosity);
+        v_draw_rawmesh(inm);
+    }
 
     return inm;
 }
@@ -769,6 +801,13 @@ void compute_radius(mesh * inm) {
                 inm->edgeface[i][j].vf->flow = WALL;
             }
         }
+
+        /*printf("\n\n");
+        forj (inm->noedgeface[i]) {
+            printf("%f (vi: %f; vf: %f)\n", inm->edgeface[i][j].curve_radius, inm->edgeface[i][j].vi->curve_radius, inm->edgeface[i][j].vf->curve_radius);
+        }
+        printf("\n\n");*/
+
         /* Free! */
         free(tt);
         free(xx);
@@ -785,23 +824,6 @@ void compute_middle_points(mesh * inm) {
      */
     /*const char *FUN = "compute_middle_points()" + supress_compute;*/
     int i;
-    /*fori (inm->noborders) {
-        forj (inm->noedgeface[i]) {
-            TODO warning! ignoring non-splined faces which we BY NOW do not have
-
-            double tx = inm->edgeface[i][j].vf->x - inm->edgeface[i][j].vi->x;
-            double ty = inm->edgeface[i][j].vf->y - inm->edgeface[i][j].vi->y;
-            double l  = sqrt(tx * tx + ty * ty) ;
-            tx = tx / l ;
-            ty = ty / l ;
-
-            double theta = asin (0.5 * l / inm->edgeface[i][j].curve_radius);
-            inm->edgeface[i][j].middle_point.x = inm->edgeface[i][j].vf->x +
-                    inm->edgeface[i][j].curve_radius * ((1 - cos(theta)) *  ty - sin(theta) * tx);
-            inm->edgeface[i][j].middle_point.y = inm->edgeface[i][j].vf->y +
-                    inm->edgeface[i][j].curve_radius * ((1 - cos(theta)) * -tx - sin(theta) * ty);
-        }
-    }*/
     fori (inm->nofaces) {
         if (inm->faces[i].border == NONE) { /* NON-BORDER */
             inm->faces[i].middle_point.x = 0.5 * (inm->faces[i].vi->x + inm->faces[i].vf->x);
@@ -1156,7 +1178,7 @@ void compute_stencil(mesh * inm) {
     int cv_no_min = (int) ceil((inm->notc - 1.0) * 1.5); /*refence: Ollivier-Gooch et al 2009 */
     fori (inm->novertices) {
         if (inm->vertices[i].cv_no < cv_no_min) {
-            AERRMF("Dude, do you wanna compute fluid dynamics of without a mesh? Go build a fine one! [NIY-too-few-vertices]");
+            AERRMF("Dude, do you wanna compute fluid dynamics without a mesh? Go build a fine tune one! [NIY-too-few-vertices]");
             /*int *m = cint(inm->novertices);
             m[0] = 1;
 
@@ -1573,7 +1595,7 @@ void compute_rungekutta5(mesh * inm) {
 
     int maxs = (int) log10(inm->max_iter) + 1;
 
-    if (!inm->quiet && inm->showinner) printf("\n");
+    //if (!inm->quiet && inm->showinner) printf("\n");
     running_solver = 1;
     while (residue > inm->nrt && iteration < inm->max_iter + 1 && !interrupt_solver) {
         //memcpy(uconserv_0[0], u[0], sizeof(double) * inm->novertices * NOU);
@@ -1615,18 +1637,15 @@ void compute_rungekutta5(mesh * inm) {
             forj (NOU)
                 uconserv[i][j] = uconserv_0[i][j] - dt[i] * r[i][j];
 
-        if (!inm->quiet && inm->showinner) {
-            INFOMF("Residue[%*d]: %.20e", maxs, iteration, residue);
+        if (!inm->quiet && inm->showdetails && iteration % inm->showdetails == 0) {
+            INFOMF("[%*d]: |r| = %.*e, Cd = %.*e, Cl = %.*e", maxs, iteration, ITRESSIZE, residue, ITRESSIZE, 0.0, ITRESSIZE, 0.0);
         }
 
-
-        v_draw_coefs(inm, 0);
+        if (inm->showgraphics && ((iteration % inm->showgraphics == 0) || iteration == 0)) {
+            v_draw_coefs(inm, 0);
+        }
 
         iteration++;
-
-        /*if ((iteration % 150) == 0)
-            inm->inflow_angle += 3 * PI / 180.0;*/
-
     }
     running_solver = 0;
 
@@ -1639,10 +1658,31 @@ void compute_rungekutta5(mesh * inm) {
     print2d("phi_chapel", phi_chapel, inm->novertices, NOU, 0);
     print3d(coef, inm->novertices, NOU, inm->notc, 0);*/
 
-    if (!inm->quiet && inm->showinner) printf("\n");
-    if (!inm->quiet) INFOMF("Final residue: %.50e", residue);
 
-    if (!(inm->quiet && !inm->fclassify)) WARNMF("Quality: [NIY-RK]");
+    //0if (!inm->quiet && inm->showinner) printf("\n");
+    if (!inm->quiet || inm->fclassify) {
+        if (residue <= inm->nrt && iteration >= inm->max_iter + 1) {
+            INFOMF("Finished after reaching the maximum iterations and reaching the residue threshold");
+        } else if (residue <= inm->nrt) {
+            INFOMF("Finished after reaching the residue threshold");
+        } else if (iteration >= inm->max_iter + 1) {
+            INFOMF("Finished after reaching the maximum iterations");
+        } else if (residue != residue) {
+            WARNMF("Finished after creating a black hole");
+        } else { /* user interrupt */
+            WARNMF("Finished after a ghost sent me a SIGINT!");
+        }
+
+        INFOMF("Finish after %d iteration%s", iteration, iteration > 1 ? "s" : "");
+        INFOMF("Residue: %.*e", FRESSIZE, residue);
+        WARNMF("Quality: [NIY-RK] Cp and Cl");
+
+    }
+
+    /* last update of grapgics */
+    if (inm->showgraphics) {
+        v_draw_coefs(inm, 0);
+    }
 }
 
 
@@ -2248,22 +2288,22 @@ flow compute_wall_condiction(border b, double inflow_angle, double xx, double yy
 
 double * compute_radius_spline(int N ,double *tt ,double *xx, double *yy) {
     gsl_interp_accel *acc = gsl_interp_accel_alloc () ;
-    gsl_spline *spline_x = gsl_spline_alloc ( gsl_interp_cspline , N ) ;
-    gsl_spline *spline_y = gsl_spline_alloc ( gsl_interp_cspline , N ) ;
+    gsl_spline *spline_x = gsl_spline_alloc (gsl_interp_cspline, N);
+    gsl_spline *spline_y = gsl_spline_alloc (gsl_interp_cspline, N);
 
     double *curve_radius = mdouble(N);
 
-    gsl_spline_init ( spline_x , tt , xx , N ) ;
-    gsl_spline_init ( spline_y , tt , yy , N ) ;
+    gsl_spline_init(spline_x, tt, xx, N);
+    gsl_spline_init(spline_y, tt, yy, N);
 
     int i ; 
     double dxi, dyi, d2xi, d2yi;
 
     for ( i = 0 ; i < N ; i++ ) {
-        dxi  = gsl_spline_eval_deriv(  spline_x, tt[i], acc);
-        dyi  = gsl_spline_eval_deriv(  spline_y, tt[i], acc);
-        d2xi = gsl_spline_eval_deriv2( spline_x, tt[i], acc);
-        d2yi = gsl_spline_eval_deriv2( spline_y, tt[i], acc);
+        dxi  = gsl_spline_eval_deriv( spline_x, tt[i], acc);
+        dyi  = gsl_spline_eval_deriv( spline_y, tt[i], acc);
+        d2xi = gsl_spline_eval_deriv2(spline_x, tt[i], acc);
+        d2yi = gsl_spline_eval_deriv2(spline_y, tt[i], acc);
         curve_radius[i] = pow (dxi * dxi + dyi * dyi, 1.5) / (dxi * d2yi - dyi*d2xi);
     }
 
@@ -2309,6 +2349,39 @@ void v_draw_rawmesh(mesh * inm) {
 
     free(v);
     free(id);
+
+
+
+    /*int faces = 2, fi = 0, ci = 0;
+    v = (float *) malloc(sizeof(float) * faces * 2 * 2);
+    float *c = (float *) malloc(sizeof(float) * faces * 3 * 2);
+
+    v[fi++] = inm->edgeface[0][0].vi->x;    v[fi++] = inm->edgeface[0][0].vi->y;
+    c[ci++] = 1.0; c[ci++] = 0.0; c[ci++] = 0.0;
+
+    v[fi++] = inm->edgeface[0][0].vf->x;    v[fi++] = inm->edgeface[0][0].vf->y;
+    c[ci++] = 1.0; c[ci++] = 1.0; c[ci++] = 0.0;
+
+
+
+
+    v[fi++] = inm->edgeface[0][inm->noedgeface[0]-1].vi->x;    v[fi++] = inm->edgeface[0][inm->noedgeface[0]-1].vi->y;
+    c[ci++] = 0.0; c[ci++] = 1.0; c[ci++] = 0.0;
+
+    v[fi++] = inm->edgeface[0][inm->noedgeface[0]-1].vf->x;    v[fi++] = inm->edgeface[0][inm->noedgeface[0]-1].vf->y;
+    c[ci++] = 0.0; c[ci++] = 1.0; c[ci++] = 1.0;
+
+
+    fi = 0;
+    printf("(%f, %f)---(%f, %f)\n", v[fi++], v[fi++], v[fi++], v[fi++]);
+    printf("(%f, %f)---(%f, %f)\n", v[fi++], v[fi++], v[fi++], v[fi++]);
+
+    mv_add(MV_2D_LINES | MV_USE_COLOUR_ARRAY, v, faces * 2, NULL, 0, c, 2.0, 2, &n);
+    mv_setrotate(n, -inm->inflow_angle * 180.0 / PI);
+    free(v);
+    free(v);*/
+
+
 
     //v  = (float *) malloc(sizeof(float) * inm->noedgeface[i] * 2);
     /*id = (unsigned int *) malloc(sizeof(unsigned int) * inm->noedgeface[0] * 2);
@@ -2596,10 +2669,15 @@ void sig_handler(int signo) {
         printf("\r");
         fprintf(stderr, "\r");
         /* VISUALIZER */
-        mv_stop();
+        //mv_stop();
 
         if (!running_solver) {
             ERRM("SIGINT received. Aborting!");
+            exit(0);
+        }
+
+        if (interrupt_solver && running_solver) {
+            ERRM("SIGINT received. Forcing abortion!");
             exit(0);
         }
 

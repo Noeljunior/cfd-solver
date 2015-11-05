@@ -28,6 +28,8 @@ typedef struct cfds_mesh cfds_mesh;
  *  Problem-related and solver-behaviour settings
  */
 typedef struct cfds_args {
+    double  angle;              /* Angle of atack in degrees*/
+    double  mach;               /* Mach speed */
     int     order;              /* Reconstruction order */
     double  cfl;                /* CFL Condiction */
     int     max_iterations;     /* Maximum iterations */
@@ -35,7 +37,8 @@ typedef struct cfds_args {
 
     char    verbose;            /* if to show something more */
     char    quiet;              /* show nothing */
-    char    showinner;          /* if to show detailed results in each rungekutta iterations */
+    int     showdetails;        /* if to show detailed results in each <showdetails> rungekutta iteration */
+    int     showgraphics;       /* if to show graphics and update them in each <showgraphics> rungekutta iteration */
     char    fclassify;          /* if quiet is set and this is set to, then it outputs only the classification */
 } cfds_args;
 

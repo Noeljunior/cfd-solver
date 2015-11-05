@@ -87,15 +87,18 @@ struct argp_option options[] = {
     {0,0,0,0,             "Main options"},
     /*{"parameters",        'p', "FILE", OPTION_NO_USAGE,     "A FILE containing the input parameters of the solver", 0},*/
     /*{"log",               'l', "FILE", OPTION_NO_USAGE,     "Output to FILE instead of standard output"},*/
-    {"force-classify",    'f', 0     , OPTION_NO_USAGE,     "If quieted, output the classification"},
+    {"force-classify",    'f', 0     , OPTION_NO_USAGE,     "If quieted, outputs the last solution's details"},
     {"force-new",         'n', 0     , OPTION_NO_USAGE,     "Tell parser that the mesh file is the new format"},
     {"force-legacy",      'o', 0     , OPTION_NO_USAGE,     "Tell parser that the mesh file is the legacy format; by default, it auto-detects"},
-    {"details",           'd', 0     , OPTION_NO_USAGE,     "Show more details during Runge-Kutta iterations"},
+    {"details",           'd', "N"   , OPTION_NO_USAGE | OPTION_ARG_OPTIONAL, "Show more details during Runge-Kutta iterations; if N is specified, show it each N iterations; N = -1 shows only the solution's detail"},
+    {"grapgics",          'g', "N"   , OPTION_NO_USAGE | OPTION_ARG_OPTIONAL, "Use graphic output; if N is specified, show it each N iterations; N = -1 shows only the solution's graphics"},
     {"stdin",             's', 0     , OPTION_NO_USAGE,     "Read from standard input instead of a file"},
     {"verbose",           'v', 0     , OPTION_NO_USAGE,     "Produce verbose output"},
     {"quiet",             'q', 0     , OPTION_NO_USAGE,     "Show nothing"},
 
     {0,0,0,OPTION_DOC,    "Problem related options"},
+    {"p-angle",           'A', "A"   , '0'            ,     "Angle of atack in degrees"},
+    {"p-mach",            'M', "M"   , '0'            ,     "Mach speed"},
     {"p-order",           'O', "O"   , '0'            ,     "Reconstruction order"},
     {"p-cfl",             'C', "CFL" , '0'            ,     "CFL Condiction"},
     {"p-iterations",      'I', "I"   , '0'            ,     "Maximum iterations"},
@@ -114,7 +117,7 @@ struct argp_option options[] = {
 /*
  * max mandatory = 2^(number of mandatory options)
  */
-int max_mandatory = 16;
+int max_mandatory = 1 << 6;
 
 
 
@@ -155,24 +158,25 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
         case 'l': args->log_file         = arg;                            break;*/
         case 's': args->rstdin           = 1;                              break;
         case 'f': args->fclassify        = 1;                              break;
-        case 'd': args->showinner        = 1;                              break;
+        case 'd': args->showdetails      = arg == NULL ? -1 : cstrtoi_ordie(arg, key, state);   break;
+        case 'g': args->showgraphics     = arg == NULL ? -1 : cstrtoi_ordie(arg, key, state);   break;
         case 'n': args->mftype           = 1;                              break;
         case 'o': args->mftype           = 2;                              break;
         case 'q': args->quiet            = 1;                              break;
         case 'v': args->verbose          = 1;                              break;
 
+        case 'A': args->angle            = cstrtod_ordie(arg, key, state);
+                  args->mandatory       |= 1 << 0;                         break;
+        case 'M': args->mach             = cstrtod_ordie(arg, key, state);
+                  args->mandatory       |= 1 << 1;                         break;
         case 'O': args->order            = cstrtoi_ordie(arg, key, state);
-                  args->mandatory       |= 1;                              break;
+                  args->mandatory       |= 1 << 2;                         break;
         case 'C': args->cfl              = cstrtod_ordie(arg, key, state);
-                  args->mandatory       |= 2;                              break;
+                  args->mandatory       |= 1 << 3;                         break;
         case 'I': args->max_iterations   = cstrtoi_ordie(arg, key, state);
-                  args->mandatory       |= 4;                              break;
-        case 'T': args->nr_threashold  = cstrtod_ordie(arg, key, state);
-                  args->mandatory       |= 8;                              break;
-        /*case 'D': args->f_ds             = 1;                              break;
-        case 'P': args->f_plot           = 1;                              break;
-        case 'A': args->f_pc             = 1;                              break;
-        case 'R': args->f_residue        = 1;                              break;*/
+                  args->mandatory       |= 1 << 4;                         break;
+        case 'T': args->nr_threashold    = cstrtod_ordie(arg, key, state);
+                  args->mandatory       |= 1 << 5;                         break;
         case 'p': args->testp            = cstrtoi_ordie(arg, key, state);
                   args->mandatory       |= max_mandatory;                  break;
 
@@ -197,7 +201,14 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
         case ARGP_KEY_END:
             /* Check for mandatory options */
             if (args->mandatory < (max_mandatory - 1)) {
-                printf("\nToo few options\n\n");
+                printf("\nToo few options -- misses: ");
+                if (!(args->mandatory & (1 << 0))) printf("-A --p-angle, ");
+                if (!(args->mandatory & (1 << 1))) printf("-M --p-mach, ");
+                if (!(args->mandatory & (1 << 2))) printf("-O --p-order, ");
+                if (!(args->mandatory & (1 << 3))) printf("-C --p-cfl, ");
+                if (!(args->mandatory & (1 << 4))) printf("-I --p-iterations, ");
+                if (!(args->mandatory & (1 << 5))) printf("-T --p-threshold, ");
+                printf("\b\b  \n\n");
                 argp_usage (state);
             }
             break;
@@ -239,16 +250,30 @@ static int validate_args(ui_args * args) {
     switch (args->testp) {
         case 0: /* no test problem */ break;
         default:
-            printf(WARNT"WARN"RESET": test suit no recognized -- %d. Using the first one\n", args->testp);
+            printf(WARNT"WARN"RESET": test suit not recognized -- %d. Using the first one\n", args->testp);
         case 1: /* so as Juan Casavilca has on his first example */
+            args->angle           = 1.25;
+            args->mach            = 0.8;
             args->order           = 2;
-            args->cfl             = 4.5;
-            args->max_iterations  = 25;
-            args->nr_threashold   = 1e-10;
+            args->cfl             = 3.5;
+            args->max_iterations  = 100000;
+            args->nr_threashold   = 1e-06;
             break;
-            
+        case 2: /* so as Juan Casavilca has on his first example */
+            args->angle           = 3.00;
+            args->mach            = 0.8;
+            args->order           = 2;
+            args->cfl             = 2.5;
+            args->max_iterations  = 100000;
+            args->nr_threashold   = 1e-6;
+            break;
     }
 
+    /* check for auto show*'s */
+    if (args->showdetails < 0)
+        args->showdetails = (args->max_iterations / 25) < 1 ? 1 : (args->max_iterations / 25);
+    if (args->showgraphics < 0)
+        args->showgraphics = (args->max_iterations / 25) < 1 ? 1 : (args->max_iterations / 25);
     /* TODO
      * check for bounderies
      */
@@ -280,21 +305,30 @@ void static print_args(ui_args * args, struct argp argp) {
 
 
     printf(BOLD"Starting the solver with:"RESET"\n\
+    Angle of atack    : %.3f\n\
+    Mach speed        : %f\n\
     Order             : %d\n\
     CFL               : %e\n\
     Max interations   : %d\n\
     Residual threshold: %e\n",
-    args->order, args->cfl, args->max_iterations, args->nr_threashold);
+    args->angle, args->mach, args->order, args->cfl, args->max_iterations, args->nr_threashold);
 
-    if (args->verbose || args->showinner)
-        printf("\n"BOLD"Verbose info: "RESET"%s%s%s\b\b \n",
+    char tempd[128], tempg[128], tmp[64];
+    sprintf(tmp, "%d ", args->showdetails);
+    sprintf(tempd, "details each %siteration%s, ", args->showdetails > 1 ? tmp : "", args->showdetails > 1 ? "s" : "");
+    sprintf(tmp, "%d ", args->showgraphics);
+    sprintf(tempg, "graphics each %siteration%s, ", args->showgraphics > 1 ? tmp : "", args->showgraphics > 1 ? "s" : "");
+
+    if (args->verbose || args->showdetails || args->showgraphics)
+        printf("\n"BOLD"Verbose info: "RESET"%s%s%s%s\b\b \n",
     (/*!args->f_ds && !args->f_plot && !args->f_pc && !args->f_residue && */!args->verbose) ? "normal, " : "",
-    args->verbose   ? "more verbose, " : "",
-    args->showinner ? "show details during iterations, " : ""/*,
-    args->f_ds      ? "data structure, " : "",
-    args->f_plot    ? "plot data, " : "",
-    args->f_pc      ? "pressure coeficients (Cp), " : "",
-    args->f_residue ? "norm residue, " : ""*/);
+    args->verbose      ? "more verbose, " : "",
+    args->showdetails  ? tempd : "",
+    args->showgraphics ? tempg : ""/*,
+    args->f_ds         ? "data structure, " : "",
+    args->f_plot       ? "plot data, " : "",
+    args->f_pc         ? "pressure coeficients (Cp), " : "",
+    args->f_residue    ? "norm residue, " : ""*/);
 
     printf("\n");
 }
@@ -310,6 +344,10 @@ void static print_args(ui_args * args, struct argp argp) {
  * String to integer or exit
  */
 int cstrtoi_ordie(char * arg, char key, struct argp_state *state) {
+    if (arg == NULL) {
+        printf("\n%c -- invalid argument: '%s'\n\n", key, "");
+        argp_usage(state);
+    }
     errno = 0;
     char * c;
     long val = strtol(arg, &c, 0);
@@ -328,6 +366,10 @@ int cstrtoi_ordie(char * arg, char key, struct argp_state *state) {
  * String to double or exit
  */
 double cstrtod_ordie(char * arg, char key, struct argp_state *state) {
+    if (arg == NULL) {
+        printf("\n%c -- invalid argument: '%s'\n\n", key, "");
+        argp_usage(state);
+    }
     errno = 0;
     char * c;
     double val = strtod(arg, &c);

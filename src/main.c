@@ -15,13 +15,16 @@ int main(int argc, char ** argv) {
 
 
     cfds_args * inargs = (cfds_args *) malloc(sizeof(cfds_args));
+    inargs->angle          = args->angle;
+    inargs->mach           = args->mach;
     inargs->order          = args->order;
     inargs->cfl            = args->cfl;
     inargs->max_iterations = args->max_iterations;
     inargs->nr_threashold  = args->nr_threashold;
     inargs->verbose        = args->verbose;
     inargs->quiet          = args->quiet;
-    inargs->showinner      = args->showinner;
+    inargs->showdetails    = args->showdetails;
+    inargs->showgraphics   = args->showgraphics;
     inargs->fclassify      = args->fclassify;
 
 
