@@ -366,7 +366,7 @@ int             supress_compute  = sizeof("compute");
 void            sig_handler(int signo);
 int             interrupt_solver = 0;
 int             running_solver   = 0;
-
+double          force_interrupt  = -7.0;
 /*
  * Debug
  */
@@ -1691,6 +1691,14 @@ void compute_rungekutta5(mesh * inm) {
         } else if (iteration >= inm->max_iter) {
             INFOMF("Finished after reaching the maximum iterations");
         } else if (residue != residue) {
+            char * colours[] = { RED, GREEN, YELLOW, BLUE, PURPLE, CYAN, BOLD, UND, RESET, "\033[5m"};
+            force_interrupt=-7.0;char space=32;srand(0);
+            while (force_interrupt<5.0){int r=rand();char c=33+r%222;
+            if (rand() / (double) RAND_MAX < 0.5 && force_interrupt > -2.0)
+            printf(colours[rand() % 10]);if (force_interrupt <= 0)
+            putchar(space);if(rand()/(double)RAND_MAX<force_interrupt/3.0)
+            putchar(c);else putchar(space);force_interrupt += 0.00001;} printf(RESET"\n\n");
+            force_interrupt = -7.0;
             WARNMF("Finished after creating a black hole");
         } else { /* user interrupt */
             WARNMF("Finished after a ghost sent me a SIGINT!");
@@ -2738,6 +2746,8 @@ void sig_handler(int signo) {
      */
     //static char *FUN = "";
     if (signo == SIGINT) {
+        if (force_interrupt > -7.0)
+            return;
         printf("\r");
         fprintf(stderr, "\r");
         /* VISUALIZER */
