@@ -326,6 +326,7 @@ void            compute_rungekutta5(mesh * inm);
 /*
  * Solver helpers
  */
+static void     compute_draglift(mesh *inm, double * cl, double *cd);
 static void     compute_rk_convert(mesh * inm, double **uc, double **u);
 static void     compute_rk_reconstruction(mesh * inm, double **u, double ***coef);
 static double   compute_rk_polinomial(mesh * inm, double ***coef, int p, int k, double x, double y);
@@ -400,6 +401,11 @@ cfds_mesh * cfds_init(cfds_args * ina, double ** vertices, int sizev, int ** edg
     inm->inflow_angle           = ina->angle * PI / 180.0;
     inm->mach_inflow            = ina->mach;
 
+    /* copy mesh metadata */
+    inm->cl_ref                 = 0.35169;
+    inm->cd_ref                 = 0.022628;
+    inm->chord                  = 1.0;
+
     /* compute the values and set the constants */
     inm->nommt                  = (int) (ceil((inm->order + 1.0) / 2.0));
     inm->notc                   = (inm->order * (inm->order + 1)) / 2;
@@ -415,11 +421,7 @@ cfds_mesh * cfds_init(cfds_args * ina, double ** vertices, int sizev, int ** edg
     inm->u_inflow[0]            = inm->u_inflow[3] / (inm->r * inm->t_inflow);
     inm->u_inflow[1]            = inm->q_inflow * cos(inm->inflow_angle);
     inm->u_inflow[2]            = inm->q_inflow * sin(inm->inflow_angle);
-    inm->chord                  = 1.0;
-    inm->cl_ref                 = 0.35169;
-    inm->cd_ref                 = 0.022628;
     inm->k_delta                = 0.25;
-
     inm->Aexp                   = 1;
     inm->M1                     = 0.8;
     inm->M2                     = 0.85;
@@ -1593,8 +1595,15 @@ void compute_rungekutta5(mesh * inm) {
     }
 
     /* init simulation - Runge-Kutta 5 stage : refer to Blazek 6.1.1 */
-    int     iteration = 0;
-    double  residue   = 1.0;
+    int     iteration      = 0;
+    double  residue        = DBL_MAX,
+            dragcoeficient = 0.0,
+            liftcoeficient = 0.0;
+
+    double  lr = residue,
+            ld = dragcoeficient,
+            ll = liftcoeficient;
+
     double  rk_a[]    = { 0.0695, 0.1602, 0.2898, 0.5060};
 
     int maxs = (int) log10(inm->max_iter) + 1;
@@ -1642,7 +1651,18 @@ void compute_rungekutta5(mesh * inm) {
                 uconserv[i][j] = uconserv_0[i][j] - dt[i] * r[i][j];
 
         if (!inm->quiet && inm->showdetails && iteration % inm->showdetails == 0) {
-            INFOMF("[%*d]: |r| = %.*e, Cd = %.*e, Cl = %.*e", maxs, iteration, ITRESSIZE, residue, ITRESSIZE, 0.0, ITRESSIZE, 0.0);
+            compute_draglift(inm, &liftcoeficient, &dragcoeficient);
+
+            //printf("\r");
+            INFOMF("[%*d]: |r| = %s%.*e"RESET", Cd = %s%s%.*f"RESET", Cl = %s%s%.*f"RESET,
+                maxs, iteration,
+                residue        > lr ? YELLOW : "", ITRESSIZE, residue, RESET,
+                dragcoeficient > ld ? YELLOW : "", ITRESSIZE, dragcoeficient, RESET,
+                liftcoeficient < ll ? YELLOW : "", ITRESSIZE, liftcoeficient);
+
+            lr = residue;
+            ld = dragcoeficient;
+            ll = liftcoeficient;
         }
 
         if (inm->showgraphics && ((iteration % inm->showgraphics == 0) || iteration == 0)) {
@@ -1663,11 +1683,12 @@ void compute_rungekutta5(mesh * inm) {
 
 
     if (!inm->quiet || inm->fclassify) {
-        if (residue <= inm->nrt && iteration >= inm->max_iter + 1) {
+        compute_draglift(inm, &liftcoeficient, &dragcoeficient);
+        if (residue <= inm->nrt && iteration >= inm->max_iter) {
             INFOMF("Finished after reaching the maximum iterations and reaching the residue threshold");
         } else if (residue <= inm->nrt) {
             INFOMF("Finished after reaching the residue threshold");
-        } else if (iteration >= inm->max_iter + 1) {
+        } else if (iteration >= inm->max_iter) {
             INFOMF("Finished after reaching the maximum iterations");
         } else if (residue != residue) {
             WARNMF("Finished after creating a black hole");
@@ -1675,9 +1696,10 @@ void compute_rungekutta5(mesh * inm) {
             WARNMF("Finished after a ghost sent me a SIGINT!");
         }
 
-        INFOMF("Finish after %d iteration%s", iteration, iteration > 1 ? "s" : "");
-        INFOMF("Residue: %.*e", FRESSIZE, residue);
-        WARNMF("Quality: [NIY-RK] Cp and Cl");
+        INFOMF("Iteration%s     : %d", iteration > 1 ? "s" : " ", iteration);
+        INFOMF("Residue        : %.*e", FRESSIZE, residue);
+        WARNMF("Drag coeficient: %.*f", FRESSIZE, dragcoeficient);
+        WARNMF("Lift coeficient: %.*f", FRESSIZE, liftcoeficient);
 
     }
 
@@ -1694,6 +1716,41 @@ void compute_rungekutta5(mesh * inm) {
  *                                             HELPERS
  *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+static void compute_draglift(mesh *inm, double * cl, double *cd) {
+    int     i, j, n;
+    double  xg, yg,
+            press_g, aux2,
+            Ca = 0.0, Cn = 0.0;
+
+    aux2 = inm->gamma * inm->u_inflow[3];
+
+    forn (inm->noborders - 1) { /* the last border is the far-end border */
+        fori (inm->noedgeface[n]) {
+            face * f = inm->edgeface[n] + i;
+
+            forj (inm->lpd) {
+                xg = f->gauss_points[j].x;
+                yg = f->gauss_points[j].y;
+                press_g = compute_rk_polinomial_lim(inm, inm->u, inm->coef, inm->phi_chapel, indexof(inm->vertices, f->vi), 3, xg, yg);
+                Ca += (press_g / aux2) * f->normals[j].x * f->gauss_weights[j];
+                Cn += (press_g / aux2) * f->normals[j].y * f->gauss_weights[j];
+            }
+            forjn (2 * inm->lpd, 3 * inm->lpd) {
+                xg = f->gauss_points[j].x;
+                yg = f->gauss_points[j].y;
+                press_g = compute_rk_polinomial_lim(inm, inm->u, inm->coef, inm->phi_chapel, indexof(inm->vertices, f->vf), 3, xg, yg);
+                Ca += (press_g / aux2) * f->normals[j].x * f->gauss_weights[j];
+                Cn += (press_g / aux2) * f->normals[j].y * f->gauss_weights[j];
+            }
+        }
+    }
+
+    Ca = 2.0 / (inm->chord * inm->mach_inflow * inm->mach_inflow) * Ca;
+    Cn = 2.0 / (inm->chord * inm->mach_inflow * inm->mach_inflow) * Cn;
+    *cl = Ca * -1.0 * sin(inm->inflow_angle) + Cn * cos(inm->inflow_angle);
+    *cd = Ca * cos(inm->inflow_angle) + Cn * sin(inm->inflow_angle);
+}
+
 static void compute_rk_convert(mesh * inm, double **uc, double **u) {
     /*
      * This computes TODO
@@ -2424,6 +2481,10 @@ double jetb[4][2] = { {0.0,   0.6}, {0.1,   1.0}, {0.35,  1.0}, {0.525, 0.0} };
 double jetg[4][2] = { {0.1,   0.0}, {0.375, 1.0}, {0.625, 1.0}, {0.875, 0.0} };
 double jetb[4][2] = { {0.0,   0.6}, {0.1,   1.0}, {0.35,  1.0}, {0.625, 0.0} };*/
 
+/* this distinguish better the upper and the lower pressures */
+/*double jetr[4][2] = { {0.45,  0.0}, {0.5,   1.0}, {0.55,  1.0}, {1.0,   0.45} };
+double jetg[4][2] = { {0.45,  0.0}, {0.5,   1.0}, {0.5,   1.0}, {0.55,  0.0} };
+double jetb[4][2] = { {1.0,  0.45}, {0.45,  1.0}, {0.5,   1.0}, {0.55 , 0.0} };*/
 
 void v_draw_coefs(mesh * inm, int uselog) {
     #define max(a, b) ((a) > (b) ? (a) : (b))
@@ -2437,9 +2498,8 @@ void v_draw_coefs(mesh * inm, int uselog) {
     fori (inm->novertices) {
         max = max(inm->u[i][id], max);
         min = min(inm->u[i][id], min);
-        if (inm->vertices +i == inm->edgeface[1][inm->noedgeface[1] / 4].vi)
-            zero = inm->u[i][id];
     }
+    zero = inm->u[indexof(inm->vertices, inm->edgeface[1][inm->noedgeface[1] / 4].vi)][id];
 
     float *c = (float *) malloc(sizeof(float) * inm->novertices * 3);
     fori (inm->novertices) {
@@ -2504,6 +2564,16 @@ void v_draw_coefs(mesh * inm, int uselog) {
     double factor = 0.0002;
     float *v = (float *) malloc(sizeof(float) * inm->novertices * 2 * 2);
     float *cv = (float *) malloc(sizeof(float) * inm->novertices * 3 * 2);
+
+    double vmax = DBL_MIN, vmin = DBL_MAX, vzero = 0.5;
+    fori (inm->novertices) {
+        double norm = l2dist(inm->u[i][1], inm->u[i][2]);
+        vmax = max(norm, vmax);
+        vmin = min(norm, vmin);
+    }
+    vzero = l2dist(inm->u[indexof(inm->vertices, inm->edgeface[1][inm->noedgeface[1] / 4].vi)][1],
+                  inm->u[indexof(inm->vertices, inm->edgeface[1][inm->noedgeface[1] / 4].vi)][2]);
+
     fori (inm->novertices) {
         v[i * 4 + 0] = inm->vertices[i].x;
         v[i * 4 + 1] = inm->vertices[i].y;
@@ -2511,18 +2581,16 @@ void v_draw_coefs(mesh * inm, int uselog) {
         v[i * 4 + 2] = inm->vertices[i].x + inm->u[i][1] * factor;
         v[i * 4 + 3] = inm->vertices[i].y + inm->u[i][2] * factor;
 
+        double val = l2dist(inm->u[i][1], inm->u[i][2]);
+        val = (val - vmin) / (vmax - vmin);
+        val = transpol(val, (vzero - vmin) / (vmax - vmin), 0.5, 0.0, 1.0);
 
-        double r = c[i * 3 + 0];
-        double g = c[i * 3 + 1];
-        double b = c[i * 3 + 2];
-
-        /*cv[i * 6 + 3] = cv[i * 6 + 0] = ((r + g + b) / 3.0) > 0.5 ? 0 : 1;
-        cv[i * 6 + 4] = cv[i * 6 + 1] = ((r + g + b) / 3.0) > 0.5 ? 0 : 1;
-        cv[i * 6 + 5] = cv[i * 6 + 2] = ((r + g + b) / 3.0) > 0.5 ? 0 : 1;*/
-        cv[i * 6 + 3] = cv[i * 6 + 0] = 1 - r;
-        cv[i * 6 + 4] = cv[i * 6 + 1] = 1 - g;
-        cv[i * 6 + 5] = cv[i * 6 + 2] = 1 - b;
+        cv[i * 6 + 3] = cv[i * 6 + 0] = val;
+        cv[i * 6 + 4] = cv[i * 6 + 1] = val;
+        cv[i * 6 + 5] = cv[i * 6 + 2] = val;
     }
+
+
 
     if (inm->velocity_plot < 0) {
         unsigned int *id = (unsigned int *) malloc(sizeof(unsigned int) * inm->novertices * 2);
@@ -2532,6 +2600,8 @@ void v_draw_coefs(mesh * inm, int uselog) {
 
         int n;
         mv_add(MV_2D_LINES | MV_USE_COLOUR_ARRAY, v, inm->novertices * 2, id, inm->novertices * 2, cv/*mv_pink*/, 1.0, 2, &n);
+        //float colour[] = {0.0, 0.75, 0.0};
+        //mv_add(MV_2D_LINES, v, inm->novertices * 2, id, inm->novertices * 2, mv_dgray/*mv_pink*/, 1.0, 2, &n);
         mv_setrotate(n, -inm->inflow_angle * 180.0 / PI);
         inm->velocity_plot = n;
 

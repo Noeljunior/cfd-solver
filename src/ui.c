@@ -256,7 +256,7 @@ static int validate_args(ui_args * args) {
             if (!(args->mandatory & (1 << 1))) args->mach            = 0.8;
             if (!(args->mandatory & (1 << 2))) args->order           = 2;
             if (!(args->mandatory & (1 << 3))) args->cfl             = 3.5;
-            if (!(args->mandatory & (1 << 4))) args->max_iterations  = 100000;
+            if (!(args->mandatory & (1 << 4))) args->max_iterations  = 1000000;
             if (!(args->mandatory & (1 << 5))) args->nr_threashold   = 1e-10;
             break;
         case 2: /* Another example */
