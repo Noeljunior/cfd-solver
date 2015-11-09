@@ -42,44 +42,43 @@ static char *MOD = "SLV";
 static char *COL = BLUE;
 
 /*                      TODO list
-    * inflow angle and mach_inflow as input args
-    * -d[detailed output of simulation] parameter: ability to chose the frequency of output
-    * -g[raphics]   show meshviewer at a given frequency
-
-
 
     * receive the parametric naca function and cl and cd references
 
 
     * IMPLEMENT the stencil!
 
-    * Print drag and lift coeficients
-
-
     * solver function RETURNS SOME CLASSIFICATION
 
-    * ability to save stats to a file!
-        * choose what to output
+    * ability to save stats to files!
+        * output the evolution:
+            file name: same as input + sufix
+            first line: number of vertices, triangles and faces;
+            second ine: input args;
+            eachline: residue, Cld, Cl, Cd, Cpupper, Cplower
+        * output data to print: u matrix per iteration
 
     * build a output visualizer
 
-    * integrate this with the meshviewer!
-        + pressures?
-    * only show the mesh if asked by user by argument
-    * stop signal handling after solver finish
 
     * REFACTOR MESHVIEWER
 
 
 
     * * NOT FOR NOW / NOT IMPORTANT/RELEVANT **
-    + verbose to files for stats/plots
-    * configurable number of digits of printed residue/objective_value
-    * option mesh draw
+    * stop signal handling after solver finish
 
 
 
     * * ALREADY DONE / PRETTY MUCH DONE **
+    * configurable number of digits of printed residue/objective_value
+    * only show the mesh if asked by user by argument
+    * integrate this with the meshviewer!
+        + pressures?
+    * Print drag and lift coeficients
+    * inflow angle and mach_inflow as input args
+    * -d[detailed output of simulation] parameter: ability to chose the frequency of output
+    * -g[raphics]   show meshviewer at a given frequency
     * fix mutexes deadlock
     + INFO
         INFO + WARN + ERR based on verbosity
@@ -145,7 +144,7 @@ static char *COL = BLUE;
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 #define NOU 4                   /* Number of reconstruction vars \Tu/ */
 
-typedef struct cfds_mesh mesh;
+typedef struct cfds_ds mesh;
 
 typedef unsigned int uint;
 
@@ -156,7 +155,7 @@ typedef enum curved { NN = 0, AB = 1, BC = 2, CA = 3 } curved;
 /*
  * The input file content
  */
-struct cfds_mesh {
+struct cfds_ds {
                                 /* vertices, triangles and faces */
     int             novertices;             /* Number of vertices */
     struct          vertex *vertices;       /* The vertices */
@@ -380,7 +379,7 @@ void            print3d(double ***u, int m, int l, int c, int new);
  *                                             EXTERNAL INTERFACE
  *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
-cfds_mesh * cfds_init(cfds_args * ina, double ** vertices, int sizev, int ** edges, int sizee, int ** triangles, int sizet) {
+cfds_ds * cfds_init(cfds_args * ina, double ** vertices, int sizev, int ** edges, int sizee, int ** triangles, int sizet) {
     /*
      * This initializes the internal data struct and returns it as ANONYMOUS
      */
@@ -478,7 +477,7 @@ cfds_mesh * cfds_init(cfds_args * ina, double ** vertices, int sizev, int ** edg
 }
 
 
-void cfds_solve(cfds_mesh * inm) {
+void cfds_solve(cfds_ds * inm) {
     /*
      * This computes the CFD problem as Juan does
      */
@@ -538,7 +537,7 @@ void cfds_solve(cfds_mesh * inm) {
     mv_wait();
 }
 
-void cfds_free(cfds_mesh * inm) {
+void cfds_free(cfds_ds * inm) {
     /*
      * This frees up every single bit allocated
      */
@@ -805,8 +804,11 @@ void compute_radius(mesh * inm) {
             forj (inm->noedgeface[i] - 1) {
                 inm->edgeface[i][j].vf->curve_radius = curve_radius[j+1];
                 inm->edgeface[i][j].vf->flow = WALL;
+                printf("[%3d] %f\n", indexof(inm->vertices, inm->edgeface[i][j].vf), inm->edgeface[i][j].vf->curve_radius);
             }
         }
+
+        printf("[%3d] %f\n", indexof(inm->vertices, inm->edgeface[0][0].vi), inm->edgeface[0][0].vi->curve_radius);
 
         /*printf("\n\n");
         forj (inm->noedgeface[i]) {
@@ -1693,12 +1695,11 @@ void compute_rungekutta5(mesh * inm) {
         } else if (residue != residue) {
             char * colours[] = { RED, GREEN, YELLOW, BLUE, PURPLE, CYAN, BOLD, UND, RESET, "\033[5m"};
             force_interrupt=-7.0;char space=32;srand(0);
-            while (force_interrupt<5.0){int r=rand();char c=33+r%222;
-            if (rand() / (double) RAND_MAX < 0.5 && force_interrupt > -2.0)
-            printf(colours[rand() % 10]);if (force_interrupt <= 0)
-            putchar(space);if(rand()/(double)RAND_MAX<force_interrupt/3.0)
-            putchar(c);else putchar(space);force_interrupt += 0.00001;} printf(RESET"\n\n");
-            force_interrupt = -7.0;
+            while(force_interrupt<5.0){int r=rand();char c=33+r%222;
+            if (rand()/(double)RAND_MAX<(force_interrupt/3.0+0.6)&&force_interrupt>-2.0)
+            printf(colours[rand() % 10]);if (force_interrupt <= 0)putchar(space);
+            if(rand()/(double)RAND_MAX<force_interrupt/3.0)putchar(c);else putchar(space);
+            force_interrupt += 0.00001;} printf(RESET"\n\n");force_interrupt=-7.0;
             WARNMF("Finished after creating a black hole");
         } else { /* user interrupt */
             WARNMF("Finished after a ghost sent me a SIGINT!");

@@ -58,14 +58,14 @@
  *                                          INFO/WARN/ERR
  *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
-#define MSGD(colour, mcol, type, fs, r, mod, fun, ...)\
+#define MSGD(colour, mcol, type, fs, _r, mod, fun, ...)\
                          ({ char mi = mod != NULL && mod[0] != '\0' ? 1 : 0;\
                             char fi = fun != NULL && fun[0] != '\0' ? 1 : 0;\
                             fprintf(fs, colour "%s%s%s%*s"colour"%s"RESET" %s%s", type,\
                                 mi ? "[" : "", mcol, _ICCS, mi ? mod : "", mi ? "]" : "",\
                                 fi ? fun : "", fi ? ": " : ""); \
                             fprintf(fs, __VA_ARGS__); \
-                            fprintf(fs, "%s", r);})
+                            fprintf(fs, "%s", _r);})
 
 /* INFO messages */
 #define INFOMF(...)         MSGD(INFOT, COL, "INFO", stdout, "\n", MOD, FUN, __VA_ARGS__)
@@ -88,9 +88,9 @@
 #define ERR(...)            MSGD(ERRT,  COL, "ERR" , stderr, "\n", "" , "" , __VA_ARGS__)
 
 /* ERROR messages and exit */
-#define AERRMF(...)         MSGD(ERRT,  COL, "ERR" , stderr, "\n", MOD, FUN, __VA_ARGS__); exit(0);
-#define AERRM(...)          MSGD(ERRT,  COL, "ERR" , stderr, "\n", MOD, "" , __VA_ARGS__); exit(0);
-#define AERR(...)           MSGD(ERRT,  COL, "ERR" , stderr, "\n", "" , "" , __VA_ARGS__); exit(0);
+#define AERRMF(...)         ({ MSGD(ERRT,  COL, "ERR" , stderr, "\n", MOD, FUN, __VA_ARGS__); exit(-1); })
+#define AERRM(...)          ({ MSGD(ERRT,  COL, "ERR" , stderr, "\n", MOD, "" , __VA_ARGS__); exit(-1); })
+#define AERR(...)           ({ MSGD(ERRT,  COL, "ERR" , stderr, "\n", "" , "" , __VA_ARGS__); exit(-1); })
 
 
 

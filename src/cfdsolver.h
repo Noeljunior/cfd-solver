@@ -22,7 +22,7 @@
 /*
  *  Main data structure, as anonymous
  */
-typedef struct cfds_mesh cfds_mesh;
+typedef struct cfds_ds cfds_ds;
 
 /*
  *  Problem-related and solver-behaviour settings
@@ -52,16 +52,16 @@ typedef struct cfds_args {
 /*
  * Init and get a pointer to the internal data struct
  */
-cfds_mesh *     cfds_init(cfds_args * ina, double ** vertices, int sizev, int ** edges, int sizee, int ** triangles, int sizet);
+cfds_ds *     cfds_init(cfds_args * ina, double ** vertices, int sizev, int ** edges, int sizee, int ** triangles, int sizet);
 
 /*
  * Solve the problem CFD problem
  */
-void            cfds_solve(cfds_mesh * inm);
+void            cfds_solve(cfds_ds * inm);
 
 /*
  * Free up everything else on memory
  */
-void            cfds_free(cfds_mesh * inm);
+void            cfds_free(cfds_ds * inm);
 
 

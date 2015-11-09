@@ -24,14 +24,24 @@
  *  The struct to return the vertices, edges, and triangles
  */
 typedef struct cfdrd_ds {
-    double      **vertices;         /* sizev * : vertices [{ xi, yi }] */
-    int         sizev;
-
-    int         **edges;            /* sizee * 3 : edges [{ v1, v2, border_type }] */
-    int         sizee;
+    double      **vertices;         /* sizev * : vertices [{ xi, yi, bi, ri }] */
+//    int         *border;            /* sizev * : border [ bi ] */
+//    double      *radius;            /* sizev * : vertices [ ri ] */
+    int         sizev;              /* vertices count */
+    //int         trailingid;         /* the vertice id of the trailing vertice */
 
     int         **triangles;        /* sizet * 3 : edges [{ v1, v2, v3 }] */
     int         sizet;
+
+
+    double      **params;           /* sizep * : parametric function's parameters
+                                        [{ border_id, func_id, #params, param * #params }] */
+    int         sizep;              /* count of params functions */
+
+    double      chord;              /* length of the airfoil's chord */
+
+    int         **edges;            /* sizee * 3 : edges [{ v1, v2, border_type }] */
+    int         sizee;
 } cfdrd_ds;
 
 

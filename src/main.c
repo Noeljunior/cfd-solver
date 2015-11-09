@@ -28,17 +28,19 @@ int main(int argc, char ** argv) {
     inargs->fclassify      = args->fclassify;
 
 
+    //cfdrd_parse_cfdm_file(args->mesh_file, args->rstdin, args->quiet);
+
     cfdrd_ds * ds = cfdrd_readfile_auto(args->mesh_file, args->rstdin, args->mftype, args->quiet);
 
     cfds_mesh *m = cfds_init(inargs, ds->vertices, ds->sizev, ds->edges, ds->sizee, ds->triangles, ds->sizet);
 
-    cfdrd_free(ds);
+    /*cfdrd_free(ds);
 
     cfds_solve(m);
-    cfds_free(m);
+    cfds_free(m);*/
 
 
-
+    return 0;
 
 }
 
