@@ -22,13 +22,15 @@ ${OBJ}%.o: $(SRC)%.c
 	gcc $(CFLAGS) $(OPT_OBJS_FLAGS) -o $@ -c $<
 
 clean:
-	rm -f cfd
+	rm -f ${OUT}
 	rm -fr ${OBJ}
 
 run: $(OUT)
 #	./$(OUT) mesh/naca0012_2261VERT.mesh -p1
 #	./$(OUT) mesh/naca0012_2261VERT.mesh -O2 -C4.5 -I5 -T0.001
-	./$(OUT) mesh/naca0012_9328VERT.mesh -O2 -C4.5 -I30 -T0.001 -vd
+#	./$(OUT) mesh/naca0012_9328VERT.mesh -O2 -C4.5 -I25 -T0.001 -vd -n
+#	./$(OUT) mesh/juan_naca0012_2261v.cfdm -p1 -vd
+	./$(OUT) mesh/naca0012_2261VERT.mesh -p1 -vd1
 
 force: clean ${OUT}
 
